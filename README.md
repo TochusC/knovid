@@ -4,6 +4,25 @@
 
 KnoVid 知视是一款面向普通创作者的 AI 知识视频创作工具。我们希望让更多人用更低的成本、更顺手的流程，做出精美、易懂、让人愿意学下去的知识视频。
 
+[体验 knovid.art](https://knovid.art/) · [5 分钟项目介绍](docs/pitch-5min.md) · [项目介绍 PPT（可编辑）](docs/media/knovid-presentation.pptx) · [观看样片](#视频样片)
+
+[![KnoVid 知视网站首页](docs/media/knovid-home.jpg)](https://knovid.art/)
+
+## 创作工作台
+
+输入一个知识主题，或附上网页链接、PDF，选择画面风格和声音设置后开始制作。镜头就绪后可以分别预览，在作品工作台里检查资料来源并修改旁白或场景参数。
+
+![KnoVid 创作工作台的主题输入和制作配置](docs/media/knovid-workspace.jpg)
+
+## 视频样片
+
+点开预览图观看带声音的 MP4，也可以打开仓库里的视频文件。
+
+| 行星的速度，谁说了算？ | 随机背后，也有规律 | AI 是怎样学会识别的？ |
+| --- | --- | --- |
+| [![行星沿椭圆轨道运动](docs/media/orbit-preview.jpg)](https://knovid.art/examples/orbit.mp4) | [![骰子与概率分布](docs/media/dice-preview.jpg)](https://knovid.art/examples/dice.mp4) | [![信号沿神经网络传递](docs/media/neural-network-preview.jpg)](https://knovid.art/examples/neural-network.mp4) |
+| [仓库 MP4 · 12 秒](frontend/public/examples/orbit.mp4) | [仓库 MP4 · 20 秒](frontend/public/examples/dice.mp4) | [仓库 MP4 · 20 秒](frontend/public/examples/neural-network.mp4) |
+
 ## 背景
 
 AI 视频创作领域已经有即梦、可灵等工具，支持从文字、图片和参考素材生成视频，也逐步形成了完整的创作流程。影视叙事是其中一个重要方向。例如，即梦的短剧工作台围绕角色、场景、道具和镜头组织素材，可灵持续强化人物表现、动作、运镜和连续叙事能力。[即梦短剧画布使用手册](https://jimeng.jianying.com/tutorials/drama-studio/canvas) · [可灵官方产品介绍](https://ir.kuaishou.com/zh-hans/news-releases/news-release-details/kelingaixinyidaimoxingklin1g-40zhengshishangxian/)
@@ -70,6 +89,8 @@ AI 视频创作领域已经有即梦、可灵等工具，支持从文字、图�
 
 KnoVid 的生产流水线接收知识点、论文 PDF 或论文链接，输出有声 MP4 和可编辑项目包。**Agent 按创作职责命名，Worker 按执行能力部署。** 同一个项目可以为多个段落同时派发同一类 Agent 任务，容器副本数按负载和资源配置。
 
+![项目介绍 PPT 中的多智能体生产架构，展示工作台、Temporal 任务队列、Worker 和项目产物](docs/media/knovid-workflow.jpg)
+
 ### Agent 分工
 
 | Agent | 职责 | 交付物 |
@@ -110,7 +131,7 @@ flowchart TD
 | 场景执行 | 复用 2.0 的 Remotion 时间轴，以及场景模块的 `renderFrame` 和 `paramSchema`。新场景按项目版本打包，预览和正式导出都在独立容器执行。执行器读取只读素材并写入任务输出目录，生成的代码无法访问模型凭据或 Docker 控制接口。 |
 | 项目与版本 | 任务只传项目版本、场景 ID 和输入引用。证据、分镜、源码、音频和视频存为项目产物，产物绑定生成时的版本。输入一致时可复用结果，任务重试时可继续使用已完成的产物。 |
 
-[Temporal 工作流](https://docs.temporal.io/workflows) · [Docker Compose 扩缩容](https://docs.docker.com/reference/cli/docker/compose/up/) · [BoHack 2.0 交接](../2.0/架构/HANDOFF.md)
+[Temporal 工作流](https://docs.temporal.io/workflows) · [Docker Compose 扩缩容](https://docs.docker.com/reference/cli/docker/compose/up/)
 
 修改旁白时，重新合成对应段落的音频和字幕，重算受影响的动作帧与场景长度，再更新整片合成。只改配乐时，重新混音即可。审核意见根据问题回派给编剧、动效师或配音导演。
 
