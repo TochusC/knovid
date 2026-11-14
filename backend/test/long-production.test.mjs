@@ -18,6 +18,7 @@ process.env.LLM_PLAN_MODEL = 'glm-5.1-highspeed';
 process.env.LLM_FAST_MODEL = 'glm-5.1-highspeed';
 const {json, projectDir, read, revisionDir} = await import('../src/common.mjs');
 const {makePlan} = await import('../src/activities/agents.mjs');
+const {creation} = await import('../src/contracts.mjs');
 
 test('the long Director expands a shared outline and retries a short chapter', async t => {
   const job = {projectId: 'project', revisionId: 'revision'};
@@ -71,8 +72,10 @@ test('the long Director expands a shared outline and retries a short chapter', a
 test('the short Director accepts oversized metadata and retries an ungrounded scene', async t => {
   const job = {projectId: 'short-project', revisionId: 'revision'};
   const subject = '行星的轨道';
+  const brief = [subject, '用两颗行星的运动说明轨道形状。'.repeat(25), '结尾留一秒给观众比较轨道。'].join('\n');
+  const project = creation({input: {type: 'topic', topic: brief}, options: {sceneCount: 3, language: 'zh'}});
   await json(join(projectDir(job.projectId), 'input.json'), {
-    input: {title: subject}, options: {sceneCount: 3, language: 'zh', maxDurationSeconds: 30},
+    ...project, options: {...project.options, maxDurationSeconds: 30},
   });
   await json(join(revisionDir(job), 'evidence.json'), {evidence: [{id: 'e1', quote: '行星沿椭圆轨道绕太阳运行。'}], figures: []});
   const artDirection = '浅紫色的背景与蓝色轨道标注。'.repeat(40);
@@ -96,7 +99,50 @@ test('the short Director accepts oversized metadata and retries an ungrounded sc
   assert.ok(plan.scenes.every(scene => scene.cues.length === 1 && scene.cues[0] === 'show_orbit'));
   assert.ok(plan.scenes.every(scene => scene.evidenceIds.length === 1 && scene.evidenceIds[0] === 'e1'));
   assert.equal(requests.length, 2);
+  assert.ok(requests.every(request => request.creativeIntent === brief));
   assert.match(requests[1].schemaCorrection, /at least one existing evidence ID/);
+});
+
+test('the Director receives closing directions from a brief split across model requests', async t => {
+  const job = {projectId: 'long-brief-project', revisionId: 'revision'};
+  const subject = 'Comparing transit maps';
+  const closing = 'End with a side-by-side comparison of the two maps.';
+  const reference = 'https://example.com/transit-maps';
+  const brief = [
+    '# ' + subject,
+    ...Array.from({length: 400}, (_, index) =>
+      `Observation ${index + 1}: Compare the same routes at different scales, starting with a city overview.`),
+    closing,
+    `[Reference maps](${reference})`,
+  ].join('\n');
+  const project = creation({input: {type: 'topic', topic: brief}, options: {sceneCount: 3, language: 'en'}});
+  assert.equal(project.input.title, subject);
+  assert.equal(project.input.brief, brief);
+  assert.deepEqual(project.input.referenceUrls, [reference]);
+  await json(join(projectDir(job.projectId), 'input.json'), project);
+  await json(join(revisionDir(job), 'evidence.json'), {evidence: [{id: 'e1', quote: 'A source excerpt.'}], figures: []});
+  const sections = [];
+  const directorRequests = [];
+  t.mock.method(globalThis, 'fetch', async (_url, request) => {
+    const {messages} = JSON.parse(request.body);
+    const input = JSON.parse(messages[1].content);
+    let value;
+    if (input.section) {
+      sections.push(input.section);
+      value = {summary: input.section.includes(closing) ? closing : 'Explain how map scale changes the view.'};
+    } else {
+      directorRequests.push(input);
+      value = {scenes: Array.from({length: 3}, () => ({
+        title: subject, goal: 'Show route changes', visual: 'Animate the two scales', cues: ['focus'], evidenceIds: ['e1'],
+      }))};
+    }
+    return Response.json({choices: [{message: {content: JSON.stringify(value)}}]});
+  });
+  assert.deepEqual(await makePlan(job, AbortSignal.timeout(5000)), ['s1', 's2', 's3']);
+  assert.ok(sections.length > 1);
+  assert.equal(sections.sort((a, b) => brief.indexOf(a) - brief.indexOf(b)).join(''), brief);
+  assert.equal(directorRequests.length, 1);
+  assert.ok(directorRequests[0].creativeIntent.endsWith(closing));
 });
 
 test('large revisions cap scene and render queues and use long assembly', async () => {

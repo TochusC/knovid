@@ -55,7 +55,7 @@ function makeScenes(a, job, ids, options) {
   return longProduction ? inBatches(ids, 4, produce) : together(ids.map(produce));
 }
 
-export async function executePipeline(a, job, {reviewBeforeMotion = true} = {}) {
+export async function executePipeline(a, job, {reviewBeforeMotion = true, prepareCreativeBriefSearch = true} = {}) {
   let ids;
   if (job.edit) {
     await a.checkpoint(job, 'running', 'reusing');
@@ -71,7 +71,8 @@ export async function executePipeline(a, job, {reviewBeforeMotion = true} = {}) 
     }
   } else {
     await a.checkpoint(job, 'running', 'research');
-    await a.acquire(job);
+    const source = await a.acquire(job);
+    if (prepareCreativeBriefSearch && source === 'long-topic') await a.prepareSearch?.(job);
     await together([a.extractText(job), a.extractFigures(job)]);
     await a.makeEvidence(job);
     await a.checkpoint(job, 'running', 'planning');

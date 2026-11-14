@@ -7,7 +7,6 @@ import {publicWebURL} from './web-source.mjs';
 
 const customStyleId = new RegExp('^' + UUID + '$');
 const referenceLimit = 8;
-const topicInputLimit = 17_000;
 
 function invalid(message) {
   throw new Fault('INVALID_INPUT', message, {status: 400});
@@ -78,7 +77,8 @@ export function referenceUrlsInTopic(topic) {
 }
 
 function topicSource(input) {
-  const topic = textField(input.topic, 'input.topic', topicInputLimit);
+  if (typeof input.topic !== 'string' || !input.topic.trim()) invalid('input.topic must not be empty');
+  const topic = input.topic.trim();
   const {references, title} = inlineReferences(topic, true);
   const supplied = input.referenceUrls ?? [];
   if (!Array.isArray(supplied) || supplied.length > referenceLimit) {
@@ -89,8 +89,10 @@ function topicSource(input) {
   const label = references.length ? title.trim()
     .replace(/(?:[\s，。；;,:：]+|^)(?:参考(?:网址|链接|资料)?|reference(?:s| links?)?|sources?)\s*[:：]?\s*$/iu, '')
     .replace(/[\s，。；;,:：]+$/, '') || new URL(referenceUrls[0]).hostname : title;
-  return {type: 'topic', title: textField(label, 'input.topic', 300), sources: sourceList(input.sources),
-    ...(referenceUrls.length && {referenceUrls})};
+  const heading = label.trim().split(/\r?\n/u, 1)[0].replace(/^#{1,6}\s+/u, '').trim() || label;
+  const displayTitle = heading.length > 160 ? heading.slice(0, 159).replace(/[\uD800-\uDBFF]$/u, '') + '…' : heading;
+  return {type: 'topic', title: label.length > 300 ? displayTitle : label, sources: sourceList(input.sources),
+    ...(topic.length > 300 && {brief: topic}), ...(referenceUrls.length && {referenceUrls})};
 }
 
 export function textField(value, label, max, min = 1) {

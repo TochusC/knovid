@@ -123,6 +123,21 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     assert.equal(labeled.input.topic, '活动官网');
   });
 
+  await t.test('long topic briefs are saved in full with a short title and their references', async () => {
+    const topic = [
+      '# 介绍 BoHack 黑客松：' + '活动时间线和参赛作品'.repeat(20),
+      '先展示选手如何组成队伍，再沿时间线介绍报名、制作和演示。'.repeat(900),
+      '结尾用参赛者向观众演示作品的镜头。参考[活动官网](https://bohack.top/#intro)。',
+    ].join('\n');
+    const created = await api.createProject({ ...input, topic: `  ${topic}\n`, referenceUrls: ['https://example.com/source'] });
+    const stored = JSON.parse(await readFile(join(temporary, 'projects', created.id, 'input.json'))).input;
+    assert.equal(stored.brief, topic);
+    assert.match(stored.title, /^介绍 BoHack 黑客松/);
+    assert.ok(stored.title.length <= 160);
+    assert.equal(created.title, stored.title);
+    assert.deepEqual(stored.referenceUrls, ['https://bohack.top/', 'https://example.com/source']);
+  });
+
   await t.test('paid providers, saved styles, visual mode and optional narration are serialized for each creation path', async () => {
     const {api: modelApi} = await loadAdapter(origin + '/paid-provider-test');
     const pricing = {id: 'deepseek', creditsPerScene: 1, creditsPerDurationUnit: 1, durationUnitSeconds: 30, maxSceneSeconds: 60};
@@ -187,7 +202,8 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
 
   await t.test('input validation and server failures use actionable Chinese messages', async () => {
     await assert.rejects(api.createProject({...input, visualMode: 'invalid-mode'}), error => error.code === 'INVALID_INPUT');
-    await assert.rejects(api.createProject({...input, topic: '长'.repeat(301)}), error => error.code === 'INVALID_INPUT' && error.message.includes('300') && !error.message.includes('input.topic'));
+    await assert.rejects(api.createProject({...input, topic: ' \n '}), error => error.code === 'INVALID_INPUT' && error.message === '请输入想讲的主题或创作说明。');
+    await assert.rejects(api.createProject({...input, topic: '长'.repeat(100_000)}), error => error.code === 'BODY_TOO_LARGE' && error.message === '这次提交的数据过大。可以把长篇资料上传为 PDF。');
     await assert.rejects(api.createProject({...input, inputType: 'paper', paperUrl: 'http://127.0.0.1/paper.pdf'}), error => error.code === 'INVALID_INPUT' && error.message.includes('公开'));
     await assert.rejects(api.createProject({...input, topic: '看 http://127.0.0.1/reference'}), error => error.code === 'INVALID_INPUT' && error.message.includes('参考链接'));
     const english = await api.createProject({...input, topic: 'Kepler laws', language: 'en'});

@@ -410,7 +410,7 @@ export function CreateWorkspace({
               }
             }}
             disabled={pending}
-            maxLength={inputType === "topic" ? 17_000 : 2_048}
+            maxLength={inputType === "paper" ? 2_048 : undefined}
           />
         )}
         <div className="input-hint">

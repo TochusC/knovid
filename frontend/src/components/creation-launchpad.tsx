@@ -65,12 +65,10 @@ export function CreationLaunchpad({
       >
         <div className="launchpad-writing-heading">
           <label htmlFor="landing-creation-topic">你想讲清楚什么？</label>
-          <span>{String(topic.length).padStart(2, "0")} / 300</span>
         </div>
         <div className="launchpad-writing-space">
           <textarea
             id="landing-creation-topic"
-            maxLength={300}
             rows={4}
             value={topic}
             onChange={(event) => setTopic(event.target.value)}

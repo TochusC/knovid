@@ -5,7 +5,7 @@ import type { Scene, WorkflowActivity, WorkflowTrace as Trace } from "@/lib/type
 import "./workflow-trace.css";
 
 const stageLabels: Record<string, string> = {
-  makeEvidence: "资料研究", makePlan: "导演分镜", directVoice: "配音指导",
+  prepareSearch: "拟定检索词", makeEvidence: "资料研究", makePlan: "导演分镜", directVoice: "配音指导",
   writeScript: "编写讲解", requireReview: "内容审校", makeMotion: "设计动效",
   acquire: "获取资料", extractText: "提取文字", extractFigures: "提取图表",
   synthesize: "合成音频", checkFrame: "检查画面", renderInfo: "准备渲染",

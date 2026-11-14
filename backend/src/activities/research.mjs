@@ -45,7 +45,8 @@ export async function acquire(job, signal) {
       if (document) await json(webDocumentFile(job), document);
     }
   }
-  return input.type;
+  return !fixture && input.type === 'topic' && input.brief && !input.referenceUrls?.length && !input.sources?.length
+    ? 'long-topic' : input.type;
 }
 
 export async function extractText(job, signal) {
@@ -68,10 +69,13 @@ export async function extractText(job, signal) {
       hits = [{title: 'Kepler’s laws of planetary motion', excerpt: 'A planet orbits the Sun along an ellipse with the Sun at one focus. Its orbital speed increases as it approaches the Sun. The line from the Sun to a planet sweeps out equal areas in equal times.', url: 'https://science.nasa.gov/solar-system/orbits-and-keplers-laws/'}];
     }
     if (!hits.length) {
+      const preparedFile = join(revisionDir(job), 'search-queries.json');
+      const prepared = input.brief && (await maybe(preparedFile)) ? (await read(preparedFile)).queries : [];
       const query = input.title.replace(/https?:\/\/[^\s<>"\u3000]+/gi, ' ').trim() || input.title;
-      const queries = [{language: settings.language, query}, ...(settings.language === 'zh' ? [{language: 'en', query}] : [])];
+      const queries = prepared.length ? prepared
+        : [{language: settings.language, query}, ...(settings.language === 'zh' ? [{language: 'en', query}] : [])];
       let searchError;
-      hits = await searchPassages(queries.slice(0, 1), signal).catch(error => {
+      hits = await searchPassages(prepared.length ? queries : queries.slice(0, 1), signal).catch(error => {
         signal.throwIfAborted();
         searchError = error;
         return [];

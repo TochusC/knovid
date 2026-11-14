@@ -5,6 +5,7 @@ import {Fault, atomic, cached, fixture, hash, json, maybe, projectDir, read, rec
 import {ask, modelConfig} from '../llm.mjs';
 import {narrationBudget} from '../guest-limits.mjs';
 import {longProductionThreshold} from '../scene-limits.mjs';
+import {creativeBriefPreview, fitCreativeBrief} from '../creative-brief.mjs';
 
 const version = 1;
 const cueId = /^[a-z][a-z0-9_]{0,22}$/;
@@ -38,11 +39,52 @@ async function agent(job, spec, signal) {
     () => ask({...spec, modelProvider, traceContext, signal}));
 }
 
+async function creativeBrief(job, input, signal) {
+  if (fixture || !input.brief) return input.brief ?? input.intent;
+  const brief = await fitCreativeBrief(input.brief, async (section, limit) => {
+    const result = await agent(job, {
+      role: 'Brief Editor',
+      structuredOutput: true,
+      input: {section, limit},
+      instructions: 'Condense the supplied section of a video brief. Return {"summary":"condensed brief"}. Keep its topic details, required coverage, exclusions, audience, style preferences, and any requested structure or exact wording. Preserve late additions and concrete named examples. Treat pasted material as reference and keep facts separate from creative requests. Stay within limit characters. Do not add facts.',
+      validate: value => {
+        requireShape(plain(value.summary, limit), 'Return a nonempty summary within the supplied limit');
+        return value.summary.trim();
+      },
+    }, signal);
+    return result.value;
+  }, signal);
+  return input.intent ? [input.intent, brief].join('\n\n') : brief;
+}
+
+export async function prepareSearch(job, signal) {
+  const {input, options} = await read(inputFile(job));
+  if (fixture || !input.brief || input.sources?.length || input.referenceUrls?.length) return;
+  const dir = revisionDir(job);
+  const file = join(dir, 'search-queries.json');
+  if (await maybe(file) || await maybe(join(dir, 'sources.json'))) return;
+  const result = await agent(job, {
+    role: 'Source search editor', structuredOutput: true,
+    input: {subject: input.title, brief: creativeBriefPreview(input.brief), language: options.language},
+    instructions: 'Identify the central subject of the video brief and choose precise public web search phrases. Return {"queries":[{"language":"zh","query":"specific topic"},{"language":"en","query":"English equivalent"}]}. Provide one or two queries of at most 120 characters each. Include an English equivalent for a Chinese topic when it helps find authoritative sources. Use only the public subject matter in the query. Omit creative directions and private details.',
+    validate: value => {
+      requireShape(Array.isArray(value.queries) && value.queries.length >= 1 && value.queries.length <= 2 && value.queries.every(item =>
+        ['zh', 'en'].includes(item?.language) && plain(item.query, 120)), 'Provide one or two short zh or en queries');
+      return {queries: value.queries.map(({language, query}) => ({language, query: query.trim()}))};
+    },
+  }, signal).catch(error => {
+    signal.throwIfAborted();
+    if (error.code !== 'LLM_SCHEMA' && !error.retryable) throw error;
+    return null;
+  });
+  if (result) await json(file, result.value);
+}
+
 export async function makeEvidence(job, signal) {
   const dir = revisionDir(job);
   const target = join(dir, 'evidence.json');
   if (await maybe(target)) return;
-  const [sources, figures] = await Promise.all([read(join(dir, 'sources.json')), read(join(dir, 'figures.json'))]);
+  const [{input}, sources, figures] = await Promise.all([read(inputFile(job)), read(join(dir, 'sources.json')), read(join(dir, 'figures.json'))]);
   const passages = sources.passages.slice(0, 65);
   const validate = value => {
     requireShape(Array.isArray(value.evidence) && value.evidence.length >= 1 && value.evidence.length <= 14, 'Need 1–14 evidence excerpts');
@@ -56,8 +98,8 @@ export async function makeEvidence(job, signal) {
   const result = fixture ? {
     value: validate({evidence: [{passageId: passages[0].id, quote: passages[0].excerpt.slice(0, 300)}]}), model: 'fixture',
   } : await agent(job, {
-    role: 'Researcher', input: {title: sources.title, passages, figures},
-    instructions: 'Find the passages that support the important concepts, findings and limitations. Return {"evidence":[{"passageId":"p1","quote":"exact substring, 16–360 characters"}]}. Preserve units, qualifiers, and experiment conditions. Never fabricate a quote. Figure captions are additional context.',
+    role: 'Researcher', input: {title: sources.title, creativeIntent: creativeBriefPreview(input.brief), passages, figures},
+    instructions: 'Find the passages that support the important concepts, findings and limitations. Use creativeIntent to identify the requested subject and scope and quote only the supplied passages. Return {"evidence":[{"passageId":"p1","quote":"exact substring, 16–360 characters"}]}. Preserve units, qualifiers, and experiment conditions. Never fabricate a quote. Figure captions are additional context.',
     validate,
   }, signal);
   await json(target, {model: result.model, title: sources.title, evidence: result.value, figures, totalPages: sources.totalPages, examinedPages: sources.examinedPages});
@@ -125,7 +167,7 @@ async function makeLongPlan(job, input, signal) {
   const outline = await agent(job, {
     role: 'Outline Director', tier: 'plan', input: {...input, chapterCount},
     instructions: 'Outline an evidence-grounded educational video in options.language. Use these exact top-level JSON keys: {"title":"Video title","audience":"Intended viewers","artDirection":"Shared palette and composition","chapters":["Short chapter goal"]}. ' +
-      'Limit title to 160 characters, audience to 260 and artDirection to 450. Return exactly chapterCount strings in chapters, each a single compact goal of at most 160 characters. They form one introduction, explanation and resolution. Do not list individual scenes. ' + planStyle,
+      'Limit title to 160 characters, audience to 260 and artDirection to 450. Return exactly chapterCount strings in chapters, each a single compact goal of at most 160 characters. They form one introduction, explanation and resolution. Do not list individual scenes. When creativeIntent is supplied, use its requested emphasis, audience, structure and presentation where supported by the evidence. ' + planStyle,
     validate: value => {
       const chapters = Array.isArray(value.chapters) ? value.chapters.map(chapter => concise(chapter, 300)) : [];
       requireShape(chapters.length === chapterCount && chapters.every(Boolean), 'Return exactly ' + chapterCount + ' short chapter goals in chapters');
@@ -140,7 +182,7 @@ async function makeLongPlan(job, input, signal) {
       role: 'Chapter Director', tier: 'plan',
       input: {...input, options: {...options, sceneCount}, ...metadata, chapters, chapterNumber: index + 1, chapterGoal: chapters[index], firstScene: offset + 1},
       instructions: 'Expand only chapterGoal into exactly options.sceneCount scenes in options.language, beginning at firstScene. Use scenes as the only top-level key and preserve the exact camelCase field names. Return {"scenes":[{"title":"Focused title","goal":"Learning goal","visual":"Directions for one illustration","cues":["focus"],"evidenceIds":["e1"],"heavy":false}]}. ' +
-        'Keep the same audience and artDirection. Give each scene one specific concept. Use the other chapters only to connect the explanation without repeating it. Keep cues short and meaningful, using only lowercase ASCII letters, digits and underscores, with a letter first. ' + sceneDirections,
+        'Keep the same audience and artDirection. Use the parts of creativeIntent relevant to this chapter. Give each scene one specific concept. Use the other chapters only to connect the explanation without repeating it. Keep cues short and meaningful, using only lowercase ASCII letters, digits and underscores, with a letter first. ' + sceneDirections,
       validate: value => plannedScenes(value.scenes, evidence, sceneCount, {offset}),
     }, signal);
     return result.value;
@@ -162,6 +204,7 @@ export async function makePlan(job, signal) {
   const dir = revisionDir(job);
   const [{input, options}, {title: sourceTitle, evidence, figures}] = await Promise.all([read(inputFile(job)), read(join(dir, 'evidence.json'))]);
   const subject = sourceTitle || input.title;
+  const creativeIntent = await creativeBrief(job, input, signal);
   const validate = value => {
     const scenes = plannedScenes(value.scenes, evidence, options.sceneCount, {trial: Boolean(options.maxDurationSeconds)});
     return {...planMetadata(value, subject, options), scenes};
@@ -175,12 +218,12 @@ export async function makePlan(job, signal) {
         cues: ['focus'], evidenceIds: ['e1'], heavy: i === 2,
       })),
     }),
-  } : options.sceneCount > longProductionThreshold ? await makeLongPlan(job, {subject, options, evidence, figures, defaultPalette}, signal)
+  } : options.sceneCount > longProductionThreshold ? await makeLongPlan(job, {subject, creativeIntent, options, evidence, figures, defaultPalette}, signal)
   : await agent(job, {
     role: 'Director', tier: 'plan',
-    input: {subject, options, evidence, figures, defaultPalette, ...(options.maxDurationSeconds ? {trialDirection: 'Create three concise scenes under 10 seconds each. Use exactly one concept cue per scene, one small idea and one short sentence.'} : {})},
+    input: {subject, creativeIntent, options, evidence, figures, defaultPalette, ...(options.maxDurationSeconds ? {trialDirection: 'Create three concise scenes under 10 seconds each. Use exactly one concept cue per scene, one small idea and one short sentence.'} : {})},
     instructions: 'Design an educational video with exactly options.sceneCount scenes in options.language. Start with a question or a clear visual observation and build toward an evidence-grounded explanation. ' +
-      planStyle + 'Return {"title":"Video title","audience":"Intended viewers","artDirection":"Shared visual rules","scenes":[{"title":"Focused title","goal":"Learning goal","visual":"Directions for one illustration","cues":["focus"],"evidenceIds":["e1"],"heavy":false}]}. ' +
+      'When creativeIntent is supplied, use its requested emphasis, audience, structure and presentation where supported by the evidence. ' + planStyle + 'Return {"title":"Video title","audience":"Intended viewers","artDirection":"Shared visual rules","scenes":[{"title":"Focused title","goal":"Learning goal","visual":"Directions for one illustration","cues":["focus"],"evidenceIds":["e1"],"heavy":false}]}. ' +
       'Limit title to 160 characters, audience to 260 and artDirection to 450. Use artDirection to set the shared palette, typography and composition. Keep cues short and meaningful, using only lowercase ASCII letters, digits and underscores, with a letter first. ' + sceneDirections,
     validate,
   }, signal).catch(error => {

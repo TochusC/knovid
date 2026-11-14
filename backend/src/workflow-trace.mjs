@@ -1,6 +1,6 @@
 import {FPS, sceneId} from './common.mjs';
 
-const agentActivities = new Set(['makeEvidence', 'makePlan', 'directVoice', 'writeScript', 'requireReview', 'makeMotion']);
+const agentActivities = new Set(['prepareSearch', 'makeEvidence', 'makePlan', 'directVoice', 'writeScript', 'requireReview', 'makeMotion']);
 const workerActivities = new Set([
   'checkpoint', 'prepareRevision', 'reserveProduction', 'acquire', 'extractText', 'extractFigures',
   'synthesize', 'checkFrame', 'rejectFrame', 'renderInfo', 'renderChunk', 'completeScene', 'assemble',

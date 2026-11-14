@@ -93,7 +93,6 @@ const messages: Record<string, string> = {
   REVISION_NOT_READY: "当前视频制作完成后，就可以修改镜头。",
   REVISION_NOT_RETRYABLE: "这个版本当前无需重试，请刷新查看制作进度。",
   ARTIFACT_NOT_READY: "文件还在准备中，制作完成后即可下载。",
-  BODY_TOO_LARGE: "文件过大，请上传不超过 20 MB 的 PDF。",
   INVALID_PDF: "文件不是有效的 PDF，请检查后重新上传。",
   NO_PDF_TEXT: "这份 PDF 暂时无法提取文字，请上传经过文字识别的版本。",
   NO_SOURCES: "没有找到可引用的资料。可以补充参考网址，或上传有正文的 PDF。",
@@ -131,7 +130,7 @@ const messages: Record<string, string> = {
 const inputErrorMessages = [
   ["input.referenceUrls", "请检查参考链接格式，最多支持 8 个公开的 HTTP 或 HTTPS 网址。"],
   ["input.url", "请填写可公开访问的 HTTP 或 HTTPS 链接。"],
-  ["input.topic", "请输入 1 到 300 字的知识主题。"],
+  ["input.topic", "请输入想讲的主题或创作说明。"],
   ["input.title", "资料标题请控制在 200 字以内。"],
   ["sceneCount", "请输入 2 到 32 个镜头。"],
   ["options.size", "请选择 360p、720p 或 1080p 清晰度。"],
@@ -174,6 +173,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, { credentials: "include", ...fetchOptions, headers, signal: controller.signal });
     if (response.status === 204) return undefined as T;
+    if (response.status === 413) {
+      const message = headers.get("Content-Type") === "application/pdf"
+        ? "文件过大，请上传不超过 20 MB 的 PDF。"
+        : "这次提交的数据过大。可以把长篇资料上传为 PDF。";
+      throw new ApiError(message, 413, "BODY_TOO_LARGE");
+    }
     const isJson = response.headers.get("content-type")?.includes("json");
     const payload: unknown = isJson ? await response.json() : undefined;
     // Failed dispatch still persists a revision. Preserve its identity for retries.

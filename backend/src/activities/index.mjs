@@ -1,7 +1,7 @@
 import {join} from 'node:path';
 import {Fault, json, read, revisionDir} from '../common.mjs';
 import {acquire, extractFigures, extractText} from './research.mjs';
-import {directVoice, makeEvidence, makeMotion, makePlan, prepareRevision, requireReview, writeScript} from './agents.mjs';
+import {directVoice, makeEvidence, makeMotion, makePlan, prepareRevision, prepareSearch, requireReview, writeScript} from './agents.mjs';
 import {synthesize} from './audio.mjs';
 import {checkFrame, completeScene, renderChunk, renderInfo} from './render.mjs';
 import {assemble} from './assembly.mjs';
@@ -39,7 +39,7 @@ async function rejectFrame(_job, id, reason) {
 export const groups = {
   workflow: {checkpoint, prepareRevision, rejectFrame, reserveProduction},
   research: {acquire, extractText, extractFigures},
-  model: {makeEvidence, makePlan, directVoice, writeScript, requireReview, makeMotion},
+  model: {prepareSearch, makeEvidence, makePlan, directVoice, writeScript, requireReview, makeMotion},
   audio: {synthesize},
   render: {checkFrame, renderInfo, renderChunk},
   assembly: {completeScene, assemble},

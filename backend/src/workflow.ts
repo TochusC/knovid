@@ -35,7 +35,7 @@ const paidStatus = proxyActivities<typeof groups.workflow>({
 const activities = {
   checkpoint: io.checkpoint, prepareRevision: io.prepareRevision, rejectFrame: io.rejectFrame,
   acquire: research.acquire, extractText: research.extractText, extractFigures: research.extractFigures,
-  makeEvidence: model.makeEvidence, makePlan: model.makePlan, directVoice: model.directVoice,
+  prepareSearch: model.prepareSearch, makeEvidence: model.makeEvidence, makePlan: model.makePlan, directVoice: model.directVoice,
   writeScript: model.writeScript, requireReview: model.requireReview, makeMotion: motion.makeMotion,
   synthesize: audio.synthesize, checkFrame: render.checkFrame, renderInfo: render.renderInfo, renderChunk: render.renderChunk,
   completeScene: assembly.completeScene, assemble: assembly.assemble, assembleLong: longAssembly.assemble,
@@ -45,9 +45,10 @@ export async function produceVideo(job: Job) {
   const finish = job.billing ? paidStatus.checkpoint : io.checkpoint;
   try {
     const reviewBeforeMotion = patched('review-before-motion');
+    const prepareCreativeBriefSearch = patched('prepare-creative-brief-search');
     const sceneActivities = reviewBeforeMotion ? {...activities, requireReview: review.requireReview} : activities;
     if (job.billing) await CancellationScope.nonCancellable(() => io.reserveProduction(job));
-    await executePipeline(sceneActivities, job, {reviewBeforeMotion});
+    await executePipeline(sceneActivities, job, {reviewBeforeMotion, prepareCreativeBriefSearch});
   } catch (error) {
     if (isCancellation(error)) {
       await CancellationScope.nonCancellable(() => finish(job, 'cancelled', 'cancelled'));
