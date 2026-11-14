@@ -6,7 +6,7 @@ html.knovid-immersive-page::-webkit-scrollbar {
   display: none;
 }
 html.dark.knovid-immersive-page {
-  background: #10121d;
+  background: var(--background);
 }
 .landing-journey {
   --lp-bg: #f2f3fa;
@@ -21,10 +21,10 @@ html.dark.knovid-immersive-page {
   font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 .dark .landing-journey {
-  --lp-bg: #10121d;
-  --lp-ink: #e3e4f1;
-  --lp-muted: #8e91a8;
-  --lp-line: rgb(190 187 230 / 0.2);
+  --lp-bg: var(--background);
+  --lp-ink: var(--foreground);
+  --lp-muted: var(--text-muted);
+  --lp-line: rgb(255 255 255 / 0.2);
   --lp-accent: #aaa0f5;
 }
 .landing-viewport {

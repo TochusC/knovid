@@ -39,7 +39,7 @@ export function ThemeControl() {
       root.style.colorScheme = isDark ? "dark" : "light";
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", isDark ? "#0d1121" : "#f7f8fc");
+        ?.setAttribute("content", isDark ? "#000000" : "#f7f8fc");
       setDark(isDark);
     };
     apply();

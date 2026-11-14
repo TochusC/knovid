@@ -66,18 +66,18 @@
 
 :root.dark {
   color-scheme: dark;
-  --background: #0d1121;
-  --foreground: #edf0ff;
-  --card: #171e33;
-  --sidebar: #11172a;
-  --surface: #1d263f;
-  --surface-hover: #26314e;
-  --surface-active: #2b3557;
-  --text-secondary: #c0c9e2;
-  --text-muted: #a0acc9;
-  --text-subtle: #8b98b9;
-  --border: #2a3552;
-  --border-strong: #414f72;
+  --background: #000000;
+  --foreground: #f4f4f4;
+  --card: #151515;
+  --sidebar: #101010;
+  --surface: #1e1e1e;
+  --surface-hover: #282828;
+  --surface-active: #303030;
+  --text-secondary: #cccccc;
+  --text-muted: #adadad;
+  --text-subtle: #9b9b9b;
+  --border: #303030;
+  --border-strong: #4c4c4c;
   --primary: #6265e8;
   --primary-hover: #7376f0;
   --on-primary: #ffffff;
@@ -93,7 +93,10 @@
   --notice: #c2b2f2;
   --notice-soft: #2c2846;
   --notice-border: #4a416b;
-  --shadow-color: 0 0 12;
+  --shadow-color: 0 0 0;
+  --media-bg: #0b0b0b;
+  --media-fg: #f4f4f4;
+  --media-muted: #b2b2b2;
 }
 
 * {
