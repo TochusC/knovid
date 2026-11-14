@@ -16,7 +16,7 @@ const {json, read, projectDir, revisionDir, sceneDir} = await import('../src/com
 const {createProject} = await import('../src/projects.mjs');
 const {creation} = await import('../src/contracts.mjs');
 const executor = {async start() {}, async close() {}};
-const topic = {input: {type: 'topic', topic: '开普勒定律'}, options: {size: '360p', sceneCount: 32, language: 'zh'}};
+const topic = {input: {type: 'topic', topic: '开普勒定律'}, options: {size: '360p', sceneCount: 32, language: 'zh', stylePresetId: 'warm-story'}};
 
 async function start(authenticate = async () => null) {
   const app = await createApp({executor, authenticate});
@@ -62,6 +62,7 @@ try {
         const input = await read(join(projectDir(job.projectId), 'input.json'));
         assert.equal(input.options.sceneCount, 3);
         assert.equal(input.options.maxDurationSeconds, 30);
+        assert.equal(input.options.styleSelection.presetId, 'warm-story');
       }
       const after = await (await second.request('/v1/access', cookie)).json();
       assert.equal(after.usage.generations, 3);

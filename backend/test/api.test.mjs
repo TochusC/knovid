@@ -130,6 +130,29 @@ try {
     await rm(join(root, 'projects'), {recursive: true, force: true});
   });
 
+  await test('a built-in style is persisted for both JSON and PDF production requests', async () => {
+    const fake = {async start() {}, async close() {}};
+    const {projectDir, read} = await import('../src/common.mjs');
+    await withAPI(async (request, send) => {
+      const payload = {...topic, options: {...topic.options, stylePresetId: 'blueprint'}};
+      const responses = [
+        await send('/v1/projects', 'POST', payload),
+        await request('/v1/projects?title=Paper&stylePresetId=paper-diagram', {
+          method: 'POST', headers: {'content-type': 'application/pdf'}, body: '%PDF-1.4\nfixture',
+        }),
+      ];
+      for (const [index, response] of responses.entries()) {
+        assert.equal(response.status, 202);
+        const {projectId} = await response.json();
+        const {options} = await read(join(projectDir(projectId), 'input.json'));
+        assert.equal(options.styleSelection.presetId, options.stylePresetId);
+        assert.match(options.styleSelection.summary, index === 0 ? /#10263B/ : /#FFFFFF/);
+      }
+      assert.equal((await send('/v1/projects', 'POST', {...payload, options: {stylePresetId: 'unknown-style'}})).status, 400);
+    }, fake);
+    await rm(join(root, 'projects'), {recursive: true, force: true});
+  });
+
   await test('fixture renders speech, subtitles and frame ranges and reuses an unchanged scene', {
     skip: process.env.KNOVID_TEST_RENDER !== '1', timeout: 100_000,
   }, async () => {

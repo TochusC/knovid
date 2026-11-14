@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Loader2, Palette, Pencil, Plus, RotateCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowRight, Loader2, Palette, Pencil, Play, Plus, RotateCw, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, ApiError } from "@/lib/api";
+import { builtinStyles, type BuiltinStyleId } from "@/lib/builtin-styles";
 import type { StylePreset, VisitorAccess } from "@/lib/types";
+import { StyleSample } from "./style-sample";
 import "./style-management.css";
 
 type StyleDialog =
@@ -30,20 +32,7 @@ export function StyleManagement({ access, accessError, onRetryAccess, onLogin }:
         <p>保存常用的配色、画面与动效规则，创建视频时直接选用。</p>
       </header>
 
-      <section className="styles-default" aria-labelledby="default-style-heading">
-        <div className="styles-default-colors" aria-hidden="true">
-          <span style={{ backgroundColor: "#7654df" }} />
-          <span style={{ backgroundColor: "#4d6ce8" }} />
-          <span style={{ backgroundColor: "#ffffff" }} />
-        </div>
-        <div>
-          <div className="styles-default-title">
-            <h2 id="default-style-heading">紫蓝白</h2>
-            <span>默认风格</span>
-          </div>
-          <p>明亮的白色与浅紫背景，紫蓝色标记重点，深色文字保持清晰易读。</p>
-        </div>
-      </section>
+      <BuiltinStyleGallery />
 
       {access?.mode === "member" ? (
         <SavedStyles />
@@ -66,6 +55,52 @@ export function StyleManagement({ access, accessError, onRetryAccess, onLogin }:
         </section>
       )}
     </div>
+  );
+}
+
+function BuiltinStyleGallery() {
+  const [playing, setPlaying] = useState<BuiltinStyleId | null>(null);
+  const stopPlaying = useCallback(() => setPlaying(null), []);
+
+  return (
+    <section className="styles-gallery" aria-labelledby="builtin-styles-heading">
+      <h2 id="builtin-styles-heading">内置风格</h2>
+      <p>用同一个行星轨道示意比较画面和动效。</p>
+      <ul className="styles-gallery-grid">
+        {builtinStyles.map((style) => {
+          const active = playing === style.id;
+          return (
+            <li className="styles-example-card" key={style.id}>
+              <div className="styles-example-media">
+                <StyleSample style={style.id} playing={active} onEnd={stopPlaying} />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon-sm"
+                  className="styles-example-play"
+                  aria-label={active ? `停止${style.name}示意` : `播放${style.name}示意`}
+                  onClick={() => setPlaying(active ? null : style.id)}
+                >
+                  {active ? <Square fill="currentColor" /> : <Play fill="currentColor" />}
+                </Button>
+              </div>
+              <div className="styles-example-copy">
+                <div className="styles-example-title">
+                  <h3>{style.name}</h3>
+                  {style.id === "default" && <span>默认</span>}
+                </div>
+                <p>{style.summary}</p>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`#/workspace?style=${style.id}`} aria-label={`使用${style.name}风格`}>
+                    使用此风格 <ArrowRight />
+                  </a>
+                </Button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

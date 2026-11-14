@@ -46,7 +46,7 @@
           {"in": "query", "name": "music", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "narration", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "modelProvider", "schema": {"$ref": "#/components/schemas/ModelProvider"}, "description": "仅用于 PDF 请求"},
-          {"in": "query", "name": "stylePresetId", "schema": {"type": "string"}, "description": "仅用于 PDF 请求。可用 default、auto 或当前用户的风格 ID。"},
+          {"in": "query", "name": "stylePresetId", "schema": {"$ref": "#/components/schemas/StylePresetId"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "musicTrack", "schema": {"$ref": "#/components/schemas/MusicTrack"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "effects", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "voiceStyle", "schema": {"$ref": "#/components/schemas/VoiceStyle"}, "description": "仅用于 PDF 请求"}
@@ -185,6 +185,10 @@
       "Language": {"type": "string", "enum": ["zh", "en"], "default": "zh"},
       "SceneCount": {"type": "integer", "minimum": 2, "maximum": 32, "default": 3, "description": "登录后可选择 2–32 个镜头。访客试用固定制作 3 个镜头。"},
       "ModelProvider": {"type": "string", "enum": ["standard", "deepseek", "openrouter"], "default": "standard"},
+      "StylePresetId": {"type": "string", "anyOf": [
+        {"enum": ["default", "paper-diagram", "blueprint", "warm-story", "bold-geometry", "auto"]},
+        {"pattern": "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$"}
+      ], "description": "内置风格、日新择优（auto）或当前用户的自定义风格 ID"},
       "Size": {"type": "string", "enum": ["360p", "720p", "1080p"], "default": "1080p"},
       "VoiceStyle": {"type": "string", "enum": ["warm", "soft", "bright", "steady"], "default": "warm", "description": "英文支持 warm 和 steady"},
       "MusicTrack": {"type": "string", "enum": ["auto", "first-light", "exploration"], "default": "auto"},
@@ -210,7 +214,7 @@
         ]},
         "options": {"type": "object", "properties": {"language": {"$ref": "#/components/schemas/Language"},
           "sceneCount": {"$ref": "#/components/schemas/SceneCount"}, "size": {"$ref": "#/components/schemas/Size"},
-          "modelProvider": {"$ref": "#/components/schemas/ModelProvider"}, "stylePresetId": {"type": "string"},
+          "modelProvider": {"$ref": "#/components/schemas/ModelProvider"}, "stylePresetId": {"$ref": "#/components/schemas/StylePresetId"},
           "narration": {"type": "boolean", "default": true},
           "music": {"type": "boolean", "default": true}, "voiceStyle": {"$ref": "#/components/schemas/VoiceStyle"},
           "musicTrack": {"$ref": "#/components/schemas/MusicTrack"}, "effects": {"type": "boolean", "default": true}}}

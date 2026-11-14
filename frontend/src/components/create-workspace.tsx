@@ -41,6 +41,7 @@ import {
   type VisitorAccess,
 } from "@/lib/types";
 import { api, apiCapabilities } from "@/lib/api";
+import { builtinStyles, isBuiltinStyleId } from "@/lib/builtin-styles";
 import { estimateProduction, MAX_CREATION_SCENES, MIN_CREATION_SCENES } from "@/lib/production-estimate";
 import { recommendSceneCount } from "@/lib/scene-recommendation";
 
@@ -49,9 +50,11 @@ interface CreateWorkspaceProps {
   suggestion: { topic: string; nonce: number } | null;
   access: VisitorAccess | null;
   onLogin: () => void;
+  initialStylePresetId?: string;
 }
 
 const draftKey = "knovid.creation-draft.v1";
+const premiumModelIds = ["deepseek", "openrouter"] as const;
 const audiences = [
   "对这个主题感兴趣的普通人",
   "中小学生",
@@ -75,6 +78,7 @@ export function CreateWorkspace({
   suggestion,
   access,
   onLogin,
+  initialStylePresetId,
 }: CreateWorkspaceProps) {
   const isGuest = access?.mode === "guest";
   const isMember = access?.mode === "member";
@@ -87,7 +91,9 @@ export function CreateWorkspace({
   const [audience, setAudience] = useState(audiences[0]);
   const [duration, setDuration] = useState("90");
   const [style, setStyle] = useState("editorial");
-  const [stylePresetId, setStylePresetId] = useState("default");
+  const [stylePresetId, setStylePresetId] = useState<string>(() =>
+    initialStylePresetId && isBuiltinStyleId(initialStylePresetId) ? initialStylePresetId : "default",
+  );
   const [stylePresets, setStylePresets] = useState<StylePreset[]>([]);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
   const [manualSceneCount, setManualSceneCount] = useState<string | null>(null);
@@ -104,10 +110,11 @@ export function CreateWorkspace({
   const fileRef = useRef<HTMLInputElement>(null);
   const sceneCountRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
-  const paidProviders = access?.mode === "member" ? access.modelProviders : undefined;
+  const paidProviders = isMember ? access.modelProviders : undefined;
   const pricing = paidProviders?.find((provider) => provider.id === modelProvider);
-  const selectedModel = pricing?.id ?? "standard";
-  const selectedStyle = isMember ? stylePresetId : "default";
+  const modelUnavailable = modelProvider !== "standard" && !pricing;
+  const unavailableModelHint = !access ? "正在核对可用模型" : isGuest ? "登录后可用" : "暂不可用";
+  const selectedStyle = isMember || isBuiltinStyleId(stylePresetId) ? stylePresetId : "default";
   const recommendedScenes = recommendSceneCount({ inputType, topic, hasPaper: Boolean(file || paperUrl.trim()) });
   const sceneCount = manualSceneCount ?? String(recommendedScenes ?? 3);
   const selectedSceneCount = isGuest ? 3 : Number(sceneCount);
@@ -119,7 +126,7 @@ export function CreateWorkspace({
     narration,
     size,
     isGuest,
-    modelProvider: selectedModel,
+    modelProvider,
   }) : undefined;
   const maximumCredits = pricing && validSceneCount && (
     pricing.creditsPerScene * selectedSceneCount
@@ -134,13 +141,9 @@ export function CreateWorkspace({
   }
 
   useEffect(() => {
-    if (access && modelProvider !== selectedModel) setModelProvider(selectedModel);
-  }, [access, modelProvider, selectedModel]);
-
-  useEffect(() => {
     setStylePresets([]);
-    setStylePresetId("default");
     if (!isMember) {
+      setStylePresetId((current) => isBuiltinStyleId(current) ? current : "default");
       return;
     }
     const controller = new AbortController();
@@ -151,6 +154,12 @@ export function CreateWorkspace({
     });
     return () => controller.abort();
   }, [isMember]);
+
+  useEffect(() => {
+    if (initialStylePresetId && isBuiltinStyleId(initialStylePresetId)) {
+      setStylePresetId(initialStylePresetId);
+    }
+  }, [initialStylePresetId]);
 
   useEffect(() => {
     if (!suggestion) return;
@@ -195,6 +204,10 @@ export function CreateWorkspace({
     }
     if (exhausted) {
       onLogin();
+      return;
+    }
+    if (modelUnavailable) {
+      setError(`${modelProviderLabels[modelProvider]} ${unavailableModelHint}，请确认账号状态或切换模型。`);
       return;
     }
     if (!validSceneCount) {
@@ -245,7 +258,7 @@ export function CreateWorkspace({
         stylePresetId: selectedStyle,
         aspectRatio,
         sceneCount: selectedSceneCount,
-        modelProvider: selectedModel,
+        modelProvider,
         size,
         language,
         music,
@@ -543,45 +556,50 @@ export function CreateWorkspace({
           <Select
             value={selectedStyle}
             onValueChange={setStylePresetId}
-            disabled={pending || !isMember}
+            disabled={pending}
           >
             <SelectTrigger aria-label="视频风格" className="setting-select">
               <Palette size={15} />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">紫蓝白（默认）</SelectItem>
+              {builtinStyles.map(({ id, name }) => (
+                <SelectItem key={id} value={id}>{id === "default" ? `${name}（默认）` : name}</SelectItem>
+              ))}
               {isMember && <SelectItem value="auto">日新择优</SelectItem>}
               {isMember && stylePresets.map(({ id, style }) => (
                 <SelectItem key={id} value={id}>{style}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {Boolean(paidProviders?.length) && (
-            <Select
-              value={selectedModel}
-              onValueChange={(value) => {
-                setModelProvider(value as ModelProvider);
-                setError("");
-              }}
-              disabled={pending}
+          <Select
+            value={modelProvider}
+            onValueChange={(value) => {
+              setModelProvider(value as ModelProvider);
+              setError("");
+            }}
+            disabled={pending}
+          >
+            <SelectTrigger
+              aria-label="制作模型"
+              aria-describedby={modelUnavailable ? "creation-model-unavailable" : pricing && validSceneCount ? "creation-model-pricing" : undefined}
+              className="setting-select"
             >
-              <SelectTrigger
-                aria-label="制作模型"
-                aria-describedby={pricing ? "creation-model-pricing" : undefined}
-                className="setting-select"
-              >
-                <BrainCircuit size={15} />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">GLM（默认）</SelectItem>
-                {paidProviders?.map(({ id }) => (
-                  <SelectItem key={id} value={id}>{modelProviderLabels[id]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+              <BrainCircuit size={15} />
+              <SelectValue>{modelProvider === "standard" ? "GLM（默认）" : modelProviderLabels[modelProvider]}</SelectValue>
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              <SelectItem value="standard">GLM-5.1 HighSpeed（默认）</SelectItem>
+              {premiumModelIds.map((id) => {
+                const available = paidProviders?.some((provider) => provider.id === id);
+                return (
+                  <SelectItem key={id} value={id} disabled={!available}>
+                    {modelProviderLabels[id]} · {available ? "使用 Credit" : unavailableModelHint}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
           <Popover.Root>
             <Popover.Trigger asChild>
               <button className="setting-select creation-audio-trigger" type="button" disabled={pending}>
@@ -642,6 +660,11 @@ export function CreateWorkspace({
             预留 {maximumCredits} Credit。结算按每个镜头 {pricing.creditsPerScene} Credit，另按成片每 {pricing.durationUnitSeconds} 秒 {pricing.creditsPerDurationUnit} Credit 向上取整。失败或取消会释放预留额度。
           </p>
         )}
+        {modelUnavailable && (
+          <p id="creation-model-unavailable" className="creation-model-pricing" role="status">
+            {modelProviderLabels[modelProvider]} {unavailableModelHint}。请确认账号状态或切换模型。
+          </p>
+        )}
         <AnimatePresence>
           {showMore && (
             <motion.div
@@ -700,7 +723,7 @@ export function CreateWorkspace({
         <Button
           className="create-button"
           onClick={() => (exhausted ? onLogin() : void submit())}
-          disabled={pending || !access || !validSceneCount}
+          disabled={pending || !access || !validSceneCount || (modelUnavailable && !exhausted)}
         >
           {pending ? (
             <Loader2 className="animate-spin" size={17} />

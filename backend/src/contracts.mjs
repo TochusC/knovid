@@ -1,6 +1,9 @@
-import {Fault, record} from './common.mjs';
+import {Fault, record, UUID} from './common.mjs';
 import {soundSettings} from './sound.mjs';
 import {guestSceneCount, maxSceneCount, minSceneCount} from './scene-limits.mjs';
+import {isBuiltinStyleId} from './builtin-styles.mjs';
+
+const customStyleId = new RegExp('^' + UUID + '$');
 
 function invalid(message) {
   throw new Fault('INVALID_INPUT', message, {status: 400});
@@ -68,8 +71,8 @@ export function creation(body, pdfBuffer) {
   const modelProvider = options.modelProvider ?? 'standard';
   if (!['standard', 'deepseek', 'openrouter'].includes(modelProvider)) invalid('Unknown model provider');
   if (options.narration !== undefined && typeof options.narration !== 'boolean') invalid('options.narration must be a boolean');
-  if (options.stylePresetId !== undefined &&
-    (typeof options.stylePresetId !== 'string' || !/^(default|auto|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/u.test(options.stylePresetId))) {
+  if (options.stylePresetId !== undefined && (typeof options.stylePresetId !== 'string' ||
+    !(isBuiltinStyleId(options.stylePresetId) || options.stylePresetId === 'auto' || customStyleId.test(options.stylePresetId)))) {
     invalid('Invalid style selection');
   }
   if (!['zh', 'en'].includes(language)) invalid('options.language must be zh or en');

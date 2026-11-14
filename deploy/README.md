@@ -24,7 +24,7 @@ bash deploy/deploy.sh --check
 
 可用 `KNOVID_SSH_TARGET` 和 `KNOVID_CERT_DIR` 环境变量调整目标与证书目录。域名固定为 `knovid.art`，域名变更须同步修改 Nginx 与两个 API 的允许来源。
 
-服务器需为使用 systemd 的 Ubuntu / Debian，登录账号有 sudo 权限。脚本会检查 Docker Compose；缺少时从系统软件源安装可用软件包。已安装 Docker 和 Compose 的其他 systemd 主机也可执行。建议至少 4 核、8 GiB 内存、20 GiB 可用磁盘，默认模型、音频、渲染并发各为 1。
+服务器需为使用 systemd 的 Ubuntu 或 Debian，登录账号有 sudo 权限。脚本会检查 Docker Compose，缺少时会从系统软件源安装可用软件包。已安装 Docker 和 Compose 的其他 systemd 主机也可执行。建议至少 4 核、8 GiB 内存、20 GiB 可用磁盘。
 
 `knovid.art` 的 DNS A 记录需要指向部署服务器的公网 IPv4 地址，云服务器入站规则需允许 80、443。启用 `www.knovid.art` 时可添加指向 `knovid.art` 的 CNAME，Nginx 会将其重定向到主域名。
 
@@ -50,8 +50,12 @@ cd /opt/knovid/current/deploy
 export KNOVID_RELEASE=$(cat /opt/knovid/shared/current-release)
 docker compose -p knovid-art --env-file /opt/knovid/shared/.env ps
 docker compose -p knovid-art --env-file /opt/knovid/shared/.env logs --tail=80 api accounts workflow
-docker logs --since 30m knovid-art-model-1
+docker compose -p knovid-art --env-file /opt/knovid/shared/.env logs --since 30m model renderer
 ```
+
+默认启动两个模型 Worker，每个同时处理一个 Agent 任务。渲染队列可同时调度两个任务，由两个隔离的 `renderer` 容器分别执行。每个容器一次渲染一个帧块，Remotion 在帧块内默认使用 1 个槽。模型队列每秒最多派发两个活动，配音默认单路运行。
+
+使用 `/opt/knovid/shared/.env` 中的 `MODEL_REPLICAS`、`MODEL_CONCURRENCY`、`MODEL_QUEUE_RATE`、`RENDER_CONCURRENCY`、`RENDERER_REPLICAS` 和 `REMOTION_CONCURRENCY` 调整容量。`RENDER_CONCURRENCY` 应与 `RENDERER_REPLICAS` 匹配，两个模型副本共享 `MODEL_QUEUE_RATE`。旧部署若显式配置 `RENDER_CONCURRENCY=1`，将其改为 `2` 后可启用两路渲染。等正在制作的任务结束再重启受影响的容器。
 
 Docker 将每个容器的日志以 JSON 文件保存在宿主机，单文件 10 MB，最多保留 3 个。可用 `docker inspect --format '{{.LogPath}}' knovid-art-model-1` 查看模型容器当前的日志路径。查分镜生成失败时，在模型日志中搜索 `motion_schema_rejected`，按作品、版本和镜头编号关联失败原因、模型和尝试次数。
 

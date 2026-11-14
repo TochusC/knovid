@@ -27,7 +27,7 @@ x-worker-env: &worker-env
   RESEARCH_CONCURRENCY: ${RESEARCH_CONCURRENCY:-1}
   MODEL_CONCURRENCY: ${MODEL_CONCURRENCY:-1}
   AUDIO_CONCURRENCY: ${AUDIO_CONCURRENCY:-1}
-  RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-1}
+  RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-2}
   ASSEMBLY_CONCURRENCY: ${ASSEMBLY_CONCURRENCY:-1}
 
 services:
@@ -161,6 +161,7 @@ services:
 
   model:
     <<: *backend
+    scale: ${MODEL_REPLICAS:-2}
     command: ["node", "src/worker.mjs", "model"]
     environment:
       <<: *worker-env
@@ -173,7 +174,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
-      MODEL_QUEUE_RATE: ${MODEL_QUEUE_RATE:-1}
+      MODEL_QUEUE_RATE: ${MODEL_QUEUE_RATE:-2}
 
   audio:
     <<: *backend
@@ -193,6 +194,7 @@ services:
 
   renderer:
     image: knovid-renderer:${KNOVID_RELEASE:-local}
+    scale: ${RENDERER_REPLICAS:-2}
     build:
       context: ../backend
       target: renderer

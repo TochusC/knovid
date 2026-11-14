@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {join} from 'node:path';
 import {Fault, hash, json, maybe, projectDir, read, record, revisionDir, root} from './common.mjs';
 import {listProjects, metadata, withProjectLock} from './projects.mjs';
+import {builtinStyles} from './builtin-styles.mjs';
 
 const settingsFile = owner => join(root, 'rixin', hash(owner) + '.json');
 const stylesFile = owner => join(root, 'rixin', hash(owner) + '.styles.json');
@@ -125,6 +126,10 @@ export async function removeStyle(owner, id) {
 export async function applyRixin(owner, payload) {
   const {stylePresetId} = payload.options;
   if (stylePresetId === 'default') return payload;
+  if (Object.hasOwn(builtinStyles, stylePresetId)) {
+    const styleSelection = {presetId: stylePresetId, ...builtinStyles[stylePresetId], selectedAt: new Date().toISOString()};
+    return {...payload, options: {...payload.options, styleSelection}};
+  }
   if (stylePresetId && stylePresetId !== 'auto') {
     const {presets} = await listStyles(owner);
     const preset = presets.find(item => item.id === stylePresetId);

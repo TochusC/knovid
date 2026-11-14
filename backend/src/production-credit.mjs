@@ -10,7 +10,7 @@ export const maxSceneSeconds = 60;
 export function modelProviders(identity) {
   const standard = {id: 'standard', creditsPerScene: 0, creditsPerDurationUnit: 0, durationUnitSeconds, maxSceneSeconds};
   if (identity.mode !== 'member' || !process.env.PRODUCTION_BILLING_TOKEN) return [standard];
-  const enabled = new Set((process.env.PREMIUM_MODEL_PROVIDERS || '').split(','));
+  const enabled = new Set((process.env.PREMIUM_MODEL_PROVIDERS || '').split(',').map(id => id.trim()));
   return [standard, ...premium.filter(id => enabled.has(id)).map(id =>
     ({id, creditsPerScene, creditsPerDurationUnit, durationUnitSeconds, maxSceneSeconds}))];
 }

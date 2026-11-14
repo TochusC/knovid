@@ -52,11 +52,15 @@ import "./app.css";
 type Route = {
   page: "landing" | "home" | "projects" | "project" | "styles" | "rixin";
   projectId?: string;
+  stylePresetId?: string;
 };
 type Connection = "checking" | "online" | "offline" | "unauthorized";
 
 function readRoute(): Route {
   const path = window.location.hash.replace(/^#\/?/, "");
+  if (path === "workspace" || path.startsWith("workspace?")) {
+    return { page: "home", stylePresetId: new URLSearchParams(path.slice("workspace".length)).get("style") ?? undefined };
+  }
   if (path === "rixin") return { page: "rixin" };
   if (path === "styles") return { page: "styles" };
   if (path.startsWith("projects/")) {
@@ -66,14 +70,7 @@ function readRoute(): Route {
       return { page: "landing" };
     }
   }
-  return {
-    page:
-      path === "projects"
-        ? "projects"
-        : path === "workspace"
-          ? "home"
-          : "landing",
-  };
+  return { page: path === "projects" ? "projects" : "landing" };
 }
 
 function durationLabel(seconds: number) {
@@ -605,6 +602,7 @@ export default function App() {
                 onCreate={createProject}
                 suggestion={suggestion}
                 access={access}
+                initialStylePresetId={route.stylePresetId}
                 onLogin={() => setLoginRequest((value) => value + 1)}
               />
               <div className="creation-reassurance">
