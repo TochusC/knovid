@@ -79,6 +79,55 @@ test('review repairs narration and visual together and only publishes the candid
   assert.equal(reviewed.length, 3, 'a retried activity reuses the approval for the same scene');
 });
 
+test('verbose findings still trigger repairs when the reviewer also reports pass', async t => {
+  const {job, scene} = await createScene();
+  const correction = '移除没有证据支持的下降曲线。';
+  const findings = [correction + '这项证据只描述客户端和服务器之间的消息传递。'.repeat(20),
+    ...Array.from({length: 6}, (_, index) => `移除图表中未经证实的标记 ${index + 1}。`)];
+  let reviews = 0;
+  let repair;
+  t.mock.method(globalThis, 'fetch', async (_url, request) => {
+    const {messages} = JSON.parse(request.body);
+    const prompt = messages[0].content;
+    if (prompt.startsWith('You are the KnoVid Reviewer.')) {
+      assert.match(prompt, /at most six findings.*at most 240 characters/);
+      return response({pass: true, issues: reviews++ === 0 ? findings : []});
+    }
+    assert.match(prompt, /^You are the KnoVid Scene revision\./);
+    repair = JSON.parse(messages[1].content).issues;
+    return response({segments: repairedSegments, visual: approvedVisual});
+  });
+
+  assert.equal((await requireReview(job, 's1', AbortSignal.timeout(7000))).visualChanged, true);
+  assert.equal(reviews, 2);
+  assert.equal(repair.length, findings.length);
+  assert.ok(repair[0].startsWith(correction));
+  assert.ok(repair[0].length <= 240);
+  assert.deepEqual(repair.slice(1), findings.slice(1));
+  assert.equal((await read(join(scene, 'review.json'))).repairs, 1);
+});
+
+test('an audit rejection without a finding retries and fails with a bounded diagnostic', async t => {
+  const {job, scene, script} = await createScene();
+  let attempts = 0;
+  let diagnostic;
+  t.mock.method(console, 'warn', message => { diagnostic = JSON.parse(message); });
+  t.mock.method(globalThis, 'fetch', async (_url, request) => {
+    const {messages} = JSON.parse(request.body);
+    assert.match(messages[0].content, /^You are the KnoVid Reviewer\./);
+    if (attempts++ === 1) assert.match(JSON.parse(messages[1].content).schemaCorrection, /actionable finding/);
+    return response({pass: false, issues: ['  ']});
+  });
+
+  await assert.rejects(requireReview(job, 's1', AbortSignal.timeout(7000)), {code: 'LLM_SCHEMA'});
+  assert.equal(attempts, 2);
+  assert.equal(diagnostic.event, 'review_schema_rejected');
+  assert.equal(diagnostic.sceneId, 's1');
+  assert.match(diagnostic.reason, /actionable finding/);
+  assert.deepEqual(await read(join(scene, 'script.json')), script);
+  await assert.rejects(read(join(scene, 'review.json')), {code: 'ENOENT'});
+});
+
 test('repeatedly rejected repairs leave the original scene intact and stop after three attempts', async t => {
   const {job, scene, script} = await createScene();
   let reviews = 0;

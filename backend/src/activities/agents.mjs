@@ -371,13 +371,23 @@ async function reviewScript(job, context, script, signal) {
   if (fixture) return {pass: true, issues: [], model: 'fixture'};
   const result = await agent(job, {
     role: 'Reviewer', input: {...reviewInput(context, script), reviewPolicy: 2},
-    instructions: 'Check the actual spoken claims in segments and factual implications of the chart or animation against the evidence. Fail only for a material unsupported or misleading claim, such as an inaccurate trend, number, date or causal link. Accept faithful paraphrases and illustrative, non-quantitative visuals. Descriptions and labels in scene.visual are not additional narration; the narration character limit applies only to segments. Ignore stylistic preferences. Return {"pass":true,"issues":[]} or {"pass":false,"issues":["precise actionable finding in video language"]}.',
+    instructions: 'Check the actual spoken claims in segments and factual implications of the chart or animation against the evidence. Fail only for a material unsupported or misleading claim, such as an inaccurate trend, number, date or causal link. Accept faithful paraphrases and illustrative, non-quantitative visuals. Descriptions and labels in scene.visual are not additional narration; the narration character limit applies only to segments. Ignore stylistic preferences. Return {"pass":true,"issues":[]} or {"pass":false,"issues":["precise actionable finding in video language"]}. List at most six findings, each as a nonempty string of at most 240 characters starting with the specific correction.',
     validate: value => {
-      requireShape(typeof value.pass === 'boolean' && Array.isArray(value.issues) && value.issues.length <= 6 &&
-        value.issues.every(issue => plain(issue, 240)) && value.pass === (value.issues.length === 0), 'Invalid review');
-      return {pass: value.pass, issues: value.issues};
+      requireShape(typeof value.pass === 'boolean' && Array.isArray(value.issues),
+        'Review must contain a boolean pass and an issues array');
+      requireShape(value.issues.length <= 12, 'Too many findings, combine related corrections and return up to six');
+      const issues = value.issues.map(issue => concise(issue, 240));
+      requireShape(issues.every(issue => spoken(issue, 240)) && (value.pass || issues.length > 0),
+        'A rejected review must provide at least one actionable finding');
+      return {pass: value.pass && issues.length === 0, issues};
     },
-  }, signal);
+  }, signal).catch(error => {
+    if (error.code === 'LLM_SCHEMA') {
+      console.warn(JSON.stringify({event: 'review_schema_rejected', projectId: job.projectId, revisionId: job.revisionId,
+        sceneId: context.scene.id, reason: error.message.slice(0, 160)}));
+    }
+    throw error;
+  });
   return {...result.value, model: result.model};
 }
 
