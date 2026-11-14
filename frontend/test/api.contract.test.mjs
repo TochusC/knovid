@@ -174,6 +174,16 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     }
   });
 
+  await t.test('malformed Writer output explains which production step failed', async () => {
+    const failed = await api.createProject({...input, topic: 'A writer that cannot return JSON'});
+    await json(join(temporary, 'projects', failed.id, 'revisions', failed.revisionId, 'status.json'), {
+      status: 'failed', stage: 'failed', updatedAt: new Date().toISOString(),
+      error: {code: 'LLM_SCHEMA', message: 'Writer returned invalid content: Expected a single valid JSON object'},
+    });
+    const result = await api.getProject(failed.id);
+    assert.match(result.error, /编写讲解.*JSON.*重新制作/);
+  });
+
   await t.test('completed scene, evidence, schema and versioned downloads normalize correctly', async () => {
     const dir = join(temporary, 'projects', project.id, 'revisions', project.revisionId);
     await json(join(dir, 'plan.json'), {

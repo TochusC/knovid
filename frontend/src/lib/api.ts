@@ -299,7 +299,10 @@ function normalizeProject(raw: BackendProject, editingSource?: BackendRevision):
   const pendingDispatch = dispatchFailure?.revisionId === raw.latestRevisionId && revision.status === "queued";
   if (dispatchFailure && !pendingDispatch) dispatchFailures.delete(raw.id);
   const durationSeconds = scenes.reduce((total, scene) => total + scene.durationSeconds, 0);
+  const writerFormatFailure = revision.error?.code === "LLM_SCHEMA" &&
+    revision.error.message === "Writer returned invalid content: Expected a single valid JSON object";
   const error = pendingDispatch ? dispatchFailure.message : revision.status === "cancelled" ? "制作已停止，可以重试继续。"
+    : writerFormatFailure ? "编写讲解时，模型未返回可读取的 JSON。可以点击「重新制作」继续。（LLM_SCHEMA）"
     : revision.error ? messages[revision.error.code] || revision.error.message : undefined;
 
   return {

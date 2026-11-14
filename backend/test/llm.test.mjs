@@ -87,6 +87,58 @@ test('HighSpeed motion requests use the full output budget', async t => {
   assert.deepEqual(result, {model: 'glm-5.1-highspeed', value: true});
 });
 
+test('Writer uses GLM JSON mode and can recover one fenced object after two malformed replies', async t => {
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', (_url, request) => {
+    requests.push(JSON.parse(request.body));
+    const content = requests.length === 3
+      ? 'Here is the object:\n\x60\x60\x60json\n{"answer":42}\n\x60\x60\x60\nDone.'
+      : '{"answer":';
+    return Response.json({choices: [{message: {content}}]});
+  });
+  process.env.LLM_BASE_URL = 'https://sec.llm.autos/v1';
+  process.env.LLM_API_KEY = 'local-test-only';
+  t.after(() => {
+    delete process.env.LLM_BASE_URL;
+    delete process.env.LLM_API_KEY;
+  });
+  const result = await ask({
+    role: 'Writer', instructions: 'Return JSON', input: {}, structuredOutput: true, formatRetries: 1,
+    signal: AbortSignal.timeout(5000), validate: value => value.answer,
+  });
+  assert.deepEqual(result, {value: 42, model: 'glm-5.1-highspeed'});
+  assert.equal(requests.length, 3);
+  for (const request of requests) {
+    assert.deepEqual(request.response_format, {type: 'json_object'});
+    assert.equal(request.stream, false);
+  }
+  assert.match(JSON.parse(requests[2].messages[1].content).request, /omit Markdown/);
+});
+
+test('Writer falls back to streaming when a gateway rejects the JSON mode option', async t => {
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', (_url, request) => {
+    const body = JSON.parse(request.body);
+    requests.push(body);
+    return body.response_format ? new Response(null, {status: 422})
+      : Response.json({choices: [{message: {content: '{"answer":42}'}}]});
+  });
+  process.env.LLM_BASE_URL = 'https://sec.llm.autos/v1';
+  process.env.LLM_API_KEY = 'local-test-only';
+  t.after(() => {
+    delete process.env.LLM_BASE_URL;
+    delete process.env.LLM_API_KEY;
+  });
+  const result = await ask({
+    role: 'Writer', instructions: 'Return JSON', input: {}, structuredOutput: true, formatRetries: 1,
+    signal: AbortSignal.timeout(5000), validate: value => value.answer,
+  });
+  assert.equal(result.value, 42);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].stream, true);
+  assert.equal(requests[1].response_format, undefined);
+});
+
 test('paid providers send distinct credentials to their configured gateways', async t => {
   const env = ['DEEPSEEK_API_KEY', 'OPENROUTER_API_KEY', 'DEEPSEEK_MODEL', 'OPENROUTER_MODEL'];
   const previous = new Map(env.map(key => [key, process.env[key]]));

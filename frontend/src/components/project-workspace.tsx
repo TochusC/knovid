@@ -139,6 +139,7 @@ export function ProjectWorkspace({
   }>({});
 
   const firstPlayableScene = project.scenes.find((scene) => scene.videoUrl);
+  const playableSceneCount = project.scenes.filter((scene) => scene.videoUrl).length;
   const selected =
     project.scenes.find((scene) => scene.id === selectedId) ??
     (project.videoUrl ? undefined : firstPlayableScene) ??
@@ -862,7 +863,9 @@ export function ProjectWorkspace({
           <div className="workspace-scenes-header">
             <div>
               <h2>镜头与讲解</h2>
-              {firstPlayableScene && <span>已完成的镜头可直接播放</span>}
+              {project.scenes.length > 0 && (
+                <span>{playableSceneCount} / {project.sceneCount ?? project.scenes.length} 个镜头可播放</span>
+              )}
             </div>
             {apiCapabilities.manualProjectRender && (
               <Button
@@ -886,57 +889,64 @@ export function ProjectWorkspace({
               </Button>
             )}
           </div>
-          <div className="workspace-scene-list" aria-label="镜头列表">
-            {project.scenes.map((scene, index) => (
-              <div
-                key={scene.id}
-                className={`workspace-scene-card ${selected?.id === scene.id ? "is-selected" : ""}`}
-              >
-                <button
-                  className="workspace-scene-select"
-                  onClick={() => selectScene(scene)}
-                  aria-pressed={selected?.id === scene.id}
-                  disabled={Boolean(busy)}
+          {project.scenes.length > 0 && (
+            <div
+              className="workspace-scene-list"
+              role="region"
+              aria-label="镜头列表"
+              tabIndex={project.scenes.length > 2 ? 0 : undefined}
+            >
+              {project.scenes.map((scene, index) => (
+                <div
+                  key={scene.id}
+                  className={`workspace-scene-card ${selected?.id === scene.id ? "is-selected" : ""}`}
                 >
-                  <span className="workspace-scene-thumb">
-                    {scene.previewUrl ? (
-                      <img src={scene.previewUrl} alt="" loading="lazy" />
-                    ) : (
-                      <span>{String(index + 1).padStart(2, "0")}</span>
-                    )}
-                    <small>{formatDuration(scene.durationSeconds)}</small>
-                  </span>
-                  <span className="workspace-scene-info">
-                    <strong>
-                      {scene.title || `镜头 ${index + 1}`}
-                      {drafts[scene.id] && (
-                        <span
-                          className="workspace-dirty-dot"
-                          title="有未保存修改"
-                        />
-                      )}
-                    </strong>
-                    <span
-                      className={scene.status === "failed" ? "has-error" : ""}
-                    >
-                      {sceneStatusLabels[scene.status]}
-                    </span>
-                  </span>
-                </button>
-                {scene.videoUrl && (
                   <button
-                    type="button"
-                    className="workspace-scene-play"
-                    onClick={() => playScene(scene)}
-                    aria-label={`播放镜头 ${index + 1}${scene.title ? ` ${scene.title}` : ""}`}
-                    title="播放镜头"
+                    className="workspace-scene-select"
+                    onClick={() => selectScene(scene)}
+                    aria-pressed={selected?.id === scene.id}
+                    disabled={Boolean(busy)}
                   >
-                    <Play size={14} fill="currentColor" aria-hidden="true" />
+                    <span className="workspace-scene-thumb">
+                      {scene.previewUrl ? (
+                        <img src={scene.previewUrl} alt="" loading="lazy" />
+                      ) : (
+                        <span>{String(index + 1).padStart(2, "0")}</span>
+                      )}
+                      <small>{formatDuration(scene.durationSeconds)}</small>
+                    </span>
+                    <span className="workspace-scene-info">
+                      <strong>
+                        {scene.title || `镜头 ${index + 1}`}
+                        {drafts[scene.id] && (
+                          <span
+                            className="workspace-dirty-dot"
+                            title="有未保存修改"
+                          />
+                        )}
+                      </strong>
+                      <span
+                        className={scene.status === "failed" ? "has-error" : ""}
+                      >
+                        {sceneStatusLabels[scene.status]}
+                      </span>
+                    </span>
                   </button>
-                )}
-              </div>
-            ))}
-          </div>
+                  {scene.videoUrl && (
+                    <button
+                      type="button"
+                      className="workspace-scene-play"
+                      onClick={() => playScene(scene)}
+                      aria-label={`播放镜头 ${index + 1}${scene.title ? ` ${scene.title}` : ""}`}
+                      title="播放镜头"
+                    >
+                      <Play size={14} fill="currentColor" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {!project.scenes.length && (
             <div className="workspace-scenes-empty">
               <FileText size={20} />

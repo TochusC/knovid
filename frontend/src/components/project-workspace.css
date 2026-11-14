@@ -303,7 +303,19 @@
 .workspace-scene-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: max-content;
   gap: 12px;
+  max-height: clamp(228px, 42svh, 335px);
+  overflow-y: auto;
+  padding: 3px 6px 6px 3px;
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+  scroll-padding: 5px;
+}
+.workspace-scene-list:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
 }
 .workspace-scene-card {
   position: relative;
@@ -903,6 +915,19 @@
   }
   .workspace-scene-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .workspace-scene-list[tabindex="0"] {
+    grid-template-columns: none;
+    grid-auto-columns: 43%;
+    grid-auto-flow: column;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 9px;
+    scroll-snap-type: inline proximity;
+  }
+  .workspace-scene-list[tabindex="0"] .workspace-scene-card {
+    scroll-snap-align: start;
   }
   .workspace-preview-header > span {
     display: none;

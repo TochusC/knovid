@@ -72,9 +72,15 @@
   font-variant-numeric: tabular-nums;
 }
 .workflow-rows {
-  max-height: 380px;
+  max-height: clamp(195px, 36svh, 300px);
   overflow-y: auto;
+  scrollbar-color: var(--border-strong) transparent;
   scrollbar-width: thin;
+}
+.workflow-rows:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
 }
 .workflow-row {
   min-height: 43px;

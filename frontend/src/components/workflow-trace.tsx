@@ -238,7 +238,7 @@ export function WorkflowTrace({ projectId, revisionId, scenes, active }: {
                 <span className="workflow-axis-key"><i /> Agent<i /> 程序</span>
                 <span className="workflow-axis-scale"><span>0 秒</span><span>{durationLabel(end - start)}</span></span>
               </div>
-              <div className="workflow-rows">
+              <div className="workflow-rows" role="region" aria-label="全片与镜头任务" tabIndex={0}>
                 {groups.map((group) => <TraceGroup key={group.id} {...group} activities={grouped.get(group.id) ?? []} start={start} end={end} />)}
               </div>
               {trace.truncated && <p className="workflow-empty">仅显示最近的部分任务。</p>}
