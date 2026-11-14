@@ -1,0 +1,71 @@
+{
+  "music": {
+    "id": "first-light",
+    "title": "First Light Particles",
+    "author": "Yoiyami",
+    "source": "https://opengameart.org/node/182244",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "edits": "Loudness adjusted and transcoded from the author's MP3"
+  },
+  "effects": [
+    {
+      "id": "transition",
+      "time": 0.055,
+      "gain": -21
+    },
+    {
+      "id": "accent",
+      "time": 3.49,
+      "gain": -21
+    },
+    {
+      "id": "transition",
+      "time": 6.84,
+      "gain": -24
+    },
+    {
+      "id": "resolve",
+      "time": 10.27,
+      "gain": -20
+    }
+  ],
+  "credits": [
+    {
+      "id": "first-light",
+      "title": "First Light Particles",
+      "author": "Yoiyami",
+      "source": "https://opengameart.org/node/182244",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Loudness adjusted and transcoded from the author's MP3"
+    },
+    {
+      "id": "transition",
+      "title": "Interface Sounds — maximize_005",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV"
+    },
+    {
+      "id": "accent",
+      "title": "Interface Sounds — pluck_002",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV"
+    },
+    {
+      "id": "resolve",
+      "title": "Interface Sounds — confirmation_003",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV"
+    }
+  ]
+}

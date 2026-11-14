@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+deploy/certs/
+backend/data/
+backend/render-spool/
+database/.data/
+demos/orbit-visual-v3-source.zip

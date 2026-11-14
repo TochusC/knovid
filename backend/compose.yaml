@@ -1,0 +1,140 @@
+name: knovid
+
+x-backend: &backend
+  image: knovid-backend:local
+  build:
+    context: .
+    target: backend
+  init: true
+  restart: unless-stopped
+  volumes:
+    - projects:/data
+  depends_on:
+    temporal:
+      condition: service_healthy
+
+x-worker-env: &worker-env
+  TEMPORAL_ADDRESS: temporal:7233
+  KNOVID_MODE: ${KNOVID_MODE:-live}
+
+services:
+  temporal:
+    image: knovid-temporal:local
+    build:
+      context: .
+      dockerfile: Dockerfile.temporal
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--headless", "--db-filename", "/var/lib/temporal/temporal.db"]
+    init: true
+    restart: unless-stopped
+    volumes:
+      - temporal:/var/lib/temporal
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 4s
+      timeout: 5s
+      retries: 18
+      start_period: 8s
+
+  api:
+    <<: *backend
+    command: ["node", "src/api.mjs"]
+    environment:
+      <<: *worker-env
+      HOST: 0.0.0.0
+      PORT: 8080
+      API_TOKEN: ${API_TOKEN:-}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
+      ACCOUNT_API_ORIGIN: ${ACCOUNT_API_ORIGIN:-http://127.0.0.1:3001}
+      PRODUCTION_BILLING_TOKEN: ${PRODUCTION_BILLING_TOKEN:-}
+      PREMIUM_MODEL_PROVIDERS: ${PREMIUM_MODEL_PROVIDERS:-}
+      RENDER_CHUNK_FRAMES: ${RENDER_CHUNK_FRAMES:-200}
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+
+  workflow:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "workflow"]
+    environment:
+      <<: *worker-env
+      ACCOUNT_API_ORIGIN: ${ACCOUNT_API_ORIGIN:-http://127.0.0.1:3001}
+      PRODUCTION_BILLING_TOKEN: ${PRODUCTION_BILLING_TOKEN:-}
+      PREMIUM_MODEL_PROVIDERS: ${PREMIUM_MODEL_PROVIDERS:-}
+
+  research:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "research"]
+    environment: *worker-env
+
+  model:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "model"]
+    environment:
+      <<: *worker-env
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://sec.llm.autos/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_PLAN_MODEL: ${LLM_PLAN_MODEL:-}
+      LLM_FAST_MODEL: ${LLM_FAST_MODEL:-}
+      LLM_MOTION_MODEL: ${LLM_MOTION_MODEL:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      MODEL_QUEUE_RATE: ${MODEL_QUEUE_RATE:-4}
+      MODEL_CONCURRENCY: ${MODEL_CONCURRENCY:-3}
+
+  audio:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "audio"]
+    environment:
+      <<: *worker-env
+      TTS_VOICE_ZH: ${TTS_VOICE_ZH:-zh-CN-YunxiNeural}
+      TTS_VOICE_EN: ${TTS_VOICE_EN:-en-US-AriaNeural}
+      AUDIO_CONCURRENCY: ${AUDIO_CONCURRENCY:-2}
+
+  render:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "render"]
+    environment:
+      <<: *worker-env
+      RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-2}
+    volumes:
+      - projects:/data
+      - render-spool:/render-spool
+
+  renderer:
+    image: knovid-renderer:local
+    build:
+      context: .
+      target: renderer
+    command: ["node", "src/render/runner.mjs"]
+    restart: unless-stopped
+    init: true
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 192
+    mem_limit: 4g
+    shm_size: 512mb
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    environment:
+      REMOTION_CONCURRENCY: ${REMOTION_CONCURRENCY:-2}
+    volumes:
+      - render-spool:/render-spool
+
+  assembly:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "assembly"]
+    environment: *worker-env
+
+volumes:
+  projects:
+  temporal:
+  render-spool:

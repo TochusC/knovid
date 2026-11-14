@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8fc" />
+    <script>
+      (() => {
+        let mode = "system";
+        try {
+          mode = localStorage.getItem("knovid.theme.v1") || "system";
+        } catch {}
+        if (!["light", "dark", "system"].includes(mode)) mode = "system";
+        const dark =
+          mode === "dark" ||
+          (mode === "system" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        document
+          .querySelector('meta[name="theme-color"]')
+          .setAttribute("content", dark ? "#0d1121" : "#f7f8fc");
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    <link rel="stylesheet" href="/rixin.css?v=2" />
+    <meta
+      name="description"
+      content="KnoVid 知视，把你的好奇与知识，变成精美、易懂的知识视频。"
+    />
+    <title>KnoVid 知视 · 让知识，让人想看</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

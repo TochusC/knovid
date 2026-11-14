@@ -1,0 +1,13 @@
+**
+!package.json
+!package-lock.json
+!openapi.json
+!Dockerfile.temporal
+!src/
+!src/**
+!fixtures/
+!fixtures/**
+!assets/
+!assets/**
+!scripts/
+!scripts/**

@@ -1,0 +1,227 @@
+name: knovid-art
+
+x-backend: &backend
+  image: knovid-backend:${KNOVID_RELEASE:-local}
+  build:
+    context: ../backend
+    target: backend
+  init: true
+  restart: unless-stopped
+  volumes:
+    - projects:/data
+  depends_on:
+    temporal:
+      condition: service_healthy
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-worker-env: &worker-env
+  NODE_ENV: production
+  TEMPORAL_ADDRESS: temporal:7233
+  KNOVID_MODE: ${KNOVID_MODE:-live}
+  KNOVID_EXECUTOR: temporal
+  WORKFLOW_CONCURRENCY: ${WORKFLOW_CONCURRENCY:-1}
+  RESEARCH_CONCURRENCY: ${RESEARCH_CONCURRENCY:-1}
+  MODEL_CONCURRENCY: ${MODEL_CONCURRENCY:-1}
+  AUDIO_CONCURRENCY: ${AUDIO_CONCURRENCY:-1}
+  RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-1}
+  ASSEMBLY_CONCURRENCY: ${ASSEMBLY_CONCURRENCY:-1}
+
+services:
+  web:
+    image: knovid-web:${KNOVID_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    environment:
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in deploy/.env}
+      NGINX_ENVSUBST_FILTER: '^API_TOKEN$'
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs:/etc/nginx/tls:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      accounts:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/_nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: knovid
+      POSTGRES_USER: knovid
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knovid -d knovid"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    logging: *logging
+
+  accounts:
+    image: knovid-accounts:${KNOVID_RELEASE:-local}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.account
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      DATABASE_URL: postgresql://knovid:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env}@postgres:5432/knovid
+      ALLOWED_ORIGINS: https://knovid.art
+      SECURE_COOKIES: "true"
+      SIGNUP_CREDITS: ${SIGNUP_CREDITS:-0}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-604800}
+      PRODUCTION_BILLING_TOKEN: ${PRODUCTION_BILLING_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/account-health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    logging: *logging
+
+  temporal:
+    image: knovid-temporal:${KNOVID_RELEASE:-local}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.temporal
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--headless", "--db-filename", "/var/lib/temporal/temporal.db"]
+    init: true
+    restart: unless-stopped
+    volumes:
+      - temporal:/var/lib/temporal
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health", "--address", "127.0.0.1:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+    logging: *logging
+
+  api:
+    <<: *backend
+    command: ["node", "src/api.mjs"]
+    environment:
+      <<: *worker-env
+      HOST: 0.0.0.0
+      PORT: 8080
+      API_TOKEN: ${API_TOKEN:?Set API_TOKEN in deploy/.env}
+      API_ALLOWED_ORIGINS: https://knovid.art
+      ACCOUNT_API_ORIGIN: http://accounts:3001
+      PRODUCTION_BILLING_TOKEN: ${PRODUCTION_BILLING_TOKEN:-}
+      PREMIUM_MODEL_PROVIDERS: ${PREMIUM_MODEL_PROVIDERS:-}
+      RENDER_CHUNK_FRAMES: ${RENDER_CHUNK_FRAMES:-200}
+    depends_on:
+      temporal:
+        condition: service_healthy
+      accounts:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  workflow:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "workflow"]
+    environment:
+      <<: *worker-env
+      ACCOUNT_API_ORIGIN: http://accounts:3001
+      PRODUCTION_BILLING_TOKEN: ${PRODUCTION_BILLING_TOKEN:-}
+      PREMIUM_MODEL_PROVIDERS: ${PREMIUM_MODEL_PROVIDERS:-}
+
+  research:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "research"]
+    environment: *worker-env
+
+  model:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "model"]
+    environment:
+      <<: *worker-env
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://sec.llm.autos/v1}
+      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY in deploy/.env}
+      LLM_PLAN_MODEL: ${LLM_PLAN_MODEL:-}
+      LLM_FAST_MODEL: ${LLM_FAST_MODEL:-}
+      LLM_MOTION_MODEL: ${LLM_MOTION_MODEL:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-}
+      MODEL_QUEUE_RATE: ${MODEL_QUEUE_RATE:-1}
+
+  audio:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "audio"]
+    environment:
+      <<: *worker-env
+      TTS_VOICE_ZH: ${TTS_VOICE_ZH:-zh-CN-YunxiNeural}
+      TTS_VOICE_EN: ${TTS_VOICE_EN:-en-US-AriaNeural}
+
+  render:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "render"]
+    environment: *worker-env
+    volumes:
+      - projects:/data
+      - render-spool:/render-spool
+
+  renderer:
+    image: knovid-renderer:${KNOVID_RELEASE:-local}
+    build:
+      context: ../backend
+      target: renderer
+    command: ["node", "src/render/runner.mjs"]
+    init: true
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 192
+    mem_limit: ${RENDERER_MEMORY_LIMIT:-2g}
+    shm_size: 256mb
+    tmpfs:
+      - /tmp:size=768m,mode=1777
+    environment:
+      REMOTION_CONCURRENCY: ${REMOTION_CONCURRENCY:-1}
+    volumes:
+      - render-spool:/render-spool
+    logging: *logging
+
+  assembly:
+    <<: *backend
+    command: ["node", "src/worker.mjs", "assembly"]
+    environment: *worker-env
+
+volumes:
+  postgres:
+  projects:
+  temporal:
+  render-spool:

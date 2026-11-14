@@ -1,0 +1,7 @@
+**/.env
+**/.env.*
+**/certs
+**/node_modules
+**/.git
+**/data
+**/render-spool

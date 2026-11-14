@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>日新 · KnoVid 知视</title>
+<link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/rixin.css?v=4">
+<script>if(window.parent===window){location.replace('/#/rixin')}else{document.documentElement.classList.toggle('dark',parent.document.documentElement.classList.contains('dark'))}</script>
+<script type="module" src="/rixin.js?v=4"></script>
+</head>
+<body class="rixin-page">
+<header class="rx-top"><a class="rx-brand" href="/">Kno<span>Vid</span> <small>知视</small></a><nav aria-label="模块导航"><a href="/">创作工作台</a><a href="/rixin.html" aria-current="page">日新</a></nav></header>
+<main>
+<section class="rx-hero"><div><p class="rx-eyebrow">RIXIN / LEARN FROM EVERY VIDEO</p><h1>日新，<span>每一支都更懂观众。</span></h1><p class="rx-muted">记录风格，回填播放量，让下一次创作有据可依。</p></div><button id="refresh" type="button" class="rx-secondary">刷新数据</button></section>
+<p id="notice" role="status" aria-live="polite">正在加载你的视频…</p>
+<section class="rx-overview" aria-label="创作数据概览"><article><span>已生成视频</span><strong id="video-count">—</strong></article><article><span>已录入播放量</span><strong id="measured-count">—</strong></article><article><span>累计播放量</span><strong id="total-views">—</strong></article></section>
+<section class="rx-recommend"><div><p class="rx-eyebrow">创作风格推荐</p><h2 id="recommended">等待第一条播放数据</h2><p id="recommend-reason" class="rx-muted">回填视频播放量后，将自动生成风格排名。</p></div><label class="rx-toggle"><input type="checkbox" id="auto" disabled>未指定风格时自动择优</label><p class="rx-rule">创作时选择「日新推荐」会采用当前排名第一的风格。没有播放数据时使用网站默认风格。<a href="/#/styles" target="_top">管理自定义风格 ↗</a></p></section>
+<section class="rx-section"><div class="rx-section-heading"><h2>风格表现</h2><span class="rx-muted">相同风格名称归为一组</span></div><div class="rx-table-wrap"><table><thead><tr><th>排名 / 风格</th><th>样本数</th><th>平均播放</th><th>择优评分</th></tr></thead><tbody id="ranking"></tbody></table></div><details class="rx-method"><summary>排名如何计算？</summary><p id="method"></p><p>评分 =（该风格总播放量 + 2 × 全体平均播放量）÷（该风格样本数 + 2）。空白不参与统计，0 播放量参与。建议使用相同平台、相同发布后时长的数据；播放量还受选题、发布时间等因素影响。</p></details></section>
+<section class="rx-section"><div class="rx-section-heading"><div><h2>逐条复盘</h2><p class="rx-muted">自动提取分镜风格摘要；可改为统一的分类名称，便于比较。每个成功生成的视频版本单独记录。</p></div><label class="rx-filter">查看 <select id="filter"><option value="all">全部视频</option><option value="pending">待录入播放量</option><option value="recorded">已录入播放量</option></select></label></div><div id="videos" class="rx-videos"></div></section>
+</main><footer>日新 · KnoVid 知视 <span>数据仅对当前账号或当前访客可见</span></footer>
+</body></html>

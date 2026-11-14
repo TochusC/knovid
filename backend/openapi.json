@@ -1,0 +1,225 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "KnoVid API", "version": "0.1.0", "description": "异步知识视频制作与镜头版本控制"},
+  "servers": [{"url": "http://localhost:8080"}],
+  "security": [{}, {"Bearer": []}],
+  "paths": {
+    "/v1/rixin": {
+      "get": {"operationId": "getRixin", "description": "日新：读取当前用户所有成功视频版本、可修订的分镜风格摘要、手动播放量和风格排名。评分=(风格总播放量+2×全体平均播放量)/(风格样本数+2)；null 不参与，0 参与。", "responses": {"200": {"description": "enabled, videos, ranking, recommended, method"}}},
+      "patch": {"operationId": "setRixin", "description": "开启或关闭新建视频的自动风格择优。启用且有播放数据时，JSON 和 PDF 创建均把排名第一的风格存入 options.styleSelection，供导演、编剧、声音导演参考。", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}}}}}, "responses": {"200": {"description": "Saved preference"}, "400": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/v1/rixin/{projectId}/{revisionId}": {
+      "parameters": [{"in": "path", "name": "projectId", "required": true, "schema": {"type": "string", "format": "uuid"}}, {"in": "path", "name": "revisionId", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+      "patch": {"operationId": "saveRixinVideo", "description": "保存属于当前用户且生成成功的视频复盘；同名风格忽略空白、大小写及全半角差异后分组。", "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["style", "summary", "views"], "properties": {"style": {"type": "string", "minLength": 1, "maxLength": 60}, "summary": {"type": "string", "minLength": 1, "maxLength": 2400}, "views": {"type": ["integer", "null"], "minimum": 0, "maximum": 9007199254740991}}}}}}, "responses": {"200": {"description": "Saved style, summary, views and updatedAt"}, "400": {"$ref": "#/components/responses/Error"}, "404": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/v1/access": {
+      "get": {"operationId": "getAccess", "description": "读取当前 Cookie 身份的服务端额度；未登录首次请求会设置 HttpOnly knovid_guest Cookie。真实账号会话验证后认领当前访客作品。",
+        "responses": {"200": {"description": "Verified member or persisted guest access", "content": {
+          "application/json": {"schema": {"$ref": "#/components/schemas/VisitorAccess"}}
+        }}, "401": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/healthz": {
+      "get": {"operationId": "health", "security": [], "responses": {"200": {"description": "API process is ready"}}}
+    },
+    "/v1/audio/catalog": {
+      "get": {"operationId": "getAudioCatalog", "responses": {"200": {"description": "Voice presets, stock music and sound-effect credits",
+        "content": {"application/json": {"schema": {"type": "object", "properties": {
+          "voices": {"type": "object"}, "music": {"type": "array", "items": {"type": "object"}},
+          "effects": {"type": "array", "items": {"type": "object"}}
+        }}}}}}}
+    },
+    "/v1/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "responses": {"200": {"description": "Projects", "content": {"application/json": {"schema": {
+          "type": "object", "properties": {"projects": {"type": "array", "items": {"$ref": "#/components/schemas/ProjectSummary"}}}
+        }}}}}
+      },
+      "post": {
+        "operationId": "createProject",
+        "description": "JSON 输入支持知识点、论文文本和受支持的论文链接。PDF 上传使用请求体中的原始文件字节。",
+        "parameters": [
+          {"in": "query", "name": "title", "schema": {"type": "string"}, "description": "PDF 标题"},
+          {"in": "query", "name": "language", "schema": {"$ref": "#/components/schemas/Language"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "sceneCount", "schema": {"$ref": "#/components/schemas/SceneCount"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "size", "schema": {"$ref": "#/components/schemas/Size"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "music", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "narration", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "modelProvider", "schema": {"$ref": "#/components/schemas/ModelProvider"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "stylePresetId", "schema": {"type": "string"}, "description": "仅用于 PDF 请求。可用 default、auto 或当前用户的风格 ID。"},
+          {"in": "query", "name": "musicTrack", "schema": {"$ref": "#/components/schemas/MusicTrack"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "effects", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "voiceStyle", "schema": {"$ref": "#/components/schemas/VoiceStyle"}, "description": "仅用于 PDF 请求"}
+        ],
+        "requestBody": {"required": true, "content": {
+          "application/json": {"schema": {"$ref": "#/components/schemas/CreateProject"}},
+          "application/pdf": {"schema": {"type": "string", "format": "binary"}}
+        }},
+        "responses": {"202": {"$ref": "#/components/responses/Submitted"}, "400": {"$ref": "#/components/responses/Error"},
+          "402": {"$ref": "#/components/responses/Error"}, "403": {"$ref": "#/components/responses/Error"},
+          "413": {"$ref": "#/components/responses/Error"}, "415": {"$ref": "#/components/responses/Error"},
+          "503": {"$ref": "#/components/responses/EnqueueFailed"}}
+      }
+    },
+    "/v1/projects/{projectId}": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}],
+      "get": {"operationId": "getProject", "responses": {"200": {"description": "Project and most recent revision", "content": {
+        "application/json": {"schema": {"allOf": [{"$ref": "#/components/schemas/ProjectSummary"}, {"type": "object", "properties": {
+          "input": {"type": "object"}, "options": {"type": "object"}, "latest": {"$ref": "#/components/schemas/Revision"},
+          "access": {"$ref": "#/components/schemas/ProjectAccess"}
+        }}]}}
+      }}, "404": {"$ref": "#/components/responses/Error"}}},
+      "patch": {"operationId": "editProject", "description": "调整镜头顺序、配乐或音效时复用已有镜头。换音色时重新合成旁白并按新时间重渲。",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["baseRevisionId"],
+          "anyOf": [{"required": ["sceneOrder"]}, {"required": ["music"]}, {"required": ["sound"]}], "properties": {
+            "baseRevisionId": {"type": "string", "format": "uuid"},
+            "sceneOrder": {"type": "array", "minItems": 2, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "pattern": "^s(?:[1-9]|[12][0-9]|3[0-2])$"}},
+            "music": {"type": "boolean"}, "sound": {"$ref": "#/components/schemas/Sound"}
+          }}}}},
+        "responses": {"202": {"$ref": "#/components/responses/Submitted"}, "400": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/EnqueueFailed"}}}
+    },
+    "/v1/projects/{projectId}/revisions/{revisionId}": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}],
+      "get": {"operationId": "getRevision", "responses": {"200": {"description": "Revision progress and ready artifacts", "content": {
+        "application/json": {"schema": {"$ref": "#/components/schemas/Revision"}}
+      }}, "404": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/v1/projects/{projectId}/revisions/{revisionId}/cancel": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}],
+      "post": {"operationId": "cancelRevision", "responses": {"202": {"description": "Cancellation requested"}, "409": {"$ref": "#/components/responses/Error"}}}
+    },
+    "/v1/projects/{projectId}/revisions/{revisionId}/retry": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}],
+      "post": {"operationId": "retryRevision", "responses": {"202": {"$ref": "#/components/responses/Submitted"},
+        "409": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/EnqueueFailed"}}}
+    },
+    "/v1/projects/{projectId}/scenes/{sceneId}": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Scene"}],
+      "patch": {"operationId": "editScene", "description": "修改旁白、场景参数或两者，并创建一个新版本。",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["baseRevisionId"],
+          "anyOf": [{"required": ["narration"]}, {"required": ["params"]}], "properties": {
+            "baseRevisionId": {"type": "string", "format": "uuid"}, "narration": {"type": "string", "minLength": 1, "maxLength": 1000, "description": "中文 320 字符，英文 1000 字符"},
+            "params": {"type": "object", "minProperties": 1, "additionalProperties": {"type": ["number", "boolean"]}}
+          }}}}},
+        "responses": {"202": {"$ref": "#/components/responses/Submitted"}, "400": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/EnqueueFailed"}}}
+    },
+    "/v1/projects/{projectId}/revisions/{revisionId}/artifacts/{name}": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}, {"$ref": "#/components/parameters/Artifact"}],
+      "get": {"operationId": "downloadArtifact", "parameters": [{"$ref": "#/components/parameters/Range"}], "responses": {
+        "200": {"$ref": "#/components/responses/Artifact"}, "206": {"$ref": "#/components/responses/Partial"},
+        "404": {"$ref": "#/components/responses/Error"}, "416": {"$ref": "#/components/responses/Error"}}},
+      "head": {"operationId": "statArtifact", "responses": {"200": {"description": "Artifact headers"}, "404": {"description": "Artifact unavailable"}}}
+    },
+    "/v1/projects/{projectId}/revisions/{revisionId}/scenes/{sceneId}/artifacts/{name}": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}, {"$ref": "#/components/parameters/Scene"}, {"$ref": "#/components/parameters/Artifact"}],
+      "get": {"operationId": "downloadSceneArtifact", "parameters": [{"$ref": "#/components/parameters/Range"}], "responses": {
+        "200": {"$ref": "#/components/responses/Artifact"}, "206": {"$ref": "#/components/responses/Partial"},
+        "404": {"$ref": "#/components/responses/Error"}, "416": {"$ref": "#/components/responses/Error"}}},
+      "head": {"operationId": "statSceneArtifact", "responses": {"200": {"description": "Artifact headers"}, "404": {"description": "Artifact unavailable"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {"Bearer": {"type": "http", "scheme": "bearer", "description": "配置 API_TOKEN 时启用"}},
+    "parameters": {
+      "Project": {"in": "path", "name": "projectId", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "Revision": {"in": "path", "name": "revisionId", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "Scene": {"in": "path", "name": "sceneId", "required": true, "schema": {"type": "string", "pattern": "^s(?:[1-9]|[12][0-9]|3[0-2])$"}},
+      "Artifact": {"in": "path", "name": "name", "required": true, "schema": {"type": "string"}},
+      "Range": {"in": "header", "name": "Range", "schema": {"type": "string"}, "example": "bytes=0-1023"}
+    },
+    "responses": {
+      "Error": {"description": "Request error", "content": {"application/json": {"schema": {"type": "object", "required": ["error"],
+        "properties": {"error": {"$ref": "#/components/schemas/Problem"}}}}}},
+      "Submitted": {"description": "Queued", "headers": {"Location": {"schema": {"type": "string"}}}, "content": {"application/json": {
+        "schema": {"$ref": "#/components/schemas/Submission"}
+      }}},
+      "EnqueueFailed": {"description": "The revision was saved and can be enqueued via the retry endpoint.",
+        "headers": {"Location": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Submission"}}}},
+      "Artifact": {"description": "Artifact data in the indicated Content-Type", "content": {"*/*": {"schema": {}}}},
+      "Partial": {"description": "Single byte range", "headers": {"Content-Range": {"schema": {"type": "string"}}},
+        "content": {"*/*": {"schema": {}}}}
+    },
+    "schemas": {
+      "VisitorAccess": {"type": "object", "required": ["mode", "limits", "usage", "remainingGenerations", "canGenerate"], "properties": {
+        "mode": {"enum": ["guest", "member"]}, "displayName": {"type": "string"},
+        "limits": {"type": "object", "required": ["maxDurationSeconds", "maxGenerations", "maxRetriesPerProject"], "properties": {
+          "maxDurationSeconds": {"type": ["integer", "null"]}, "maxGenerations": {"type": ["integer", "null"]},
+          "maxRetriesPerProject": {"type": ["integer", "null"]}
+        }}, "usage": {"type": "object", "required": ["generations"], "properties": {"generations": {"type": "integer", "minimum": 0}}},
+        "remainingGenerations": {"type": ["integer", "null"]}, "canGenerate": {"type": "boolean"},
+        "modelProviders": {"type": "array", "items": {"type": "object", "properties": {
+          "id": {"$ref": "#/components/schemas/ModelProvider"},
+          "creditsPerScene": {"type": "integer", "minimum": 0}, "creditsPerDurationUnit": {"type": "integer", "minimum": 0},
+          "durationUnitSeconds": {"type": "integer", "minimum": 1}, "maxSceneSeconds": {"type": "integer", "minimum": 1}
+        }}}
+      }},
+      "ProjectAccess": {"type": "object", "properties": {
+        "canEdit": {"type": "boolean"}, "canRetry": {"type": "boolean"}, "remainingGenerations": {"type": ["integer", "null"]},
+        "remainingRetries": {"type": ["integer", "null"]}, "maxDurationSeconds": {"type": ["integer", "null"]},
+        "maxNarrationCharacters": {"type": ["integer", "null"]}
+      }},
+      "Language": {"type": "string", "enum": ["zh", "en"], "default": "zh"},
+      "SceneCount": {"type": "integer", "minimum": 2, "maximum": 32, "default": 3, "description": "登录后可选择 2–32 个镜头。访客试用固定制作 3 个镜头。"},
+      "ModelProvider": {"type": "string", "enum": ["standard", "deepseek", "openrouter"], "default": "standard"},
+      "Size": {"type": "string", "enum": ["360p", "720p", "1080p"], "default": "1080p"},
+      "VoiceStyle": {"type": "string", "enum": ["warm", "soft", "bright", "steady"], "default": "warm", "description": "英文支持 warm 和 steady"},
+      "MusicTrack": {"type": "string", "enum": ["auto", "first-light", "exploration"], "default": "auto"},
+      "Sound": {"type": "object", "minProperties": 1, "properties": {
+        "voiceStyle": {"$ref": "#/components/schemas/VoiceStyle"}, "musicTrack": {"$ref": "#/components/schemas/MusicTrack"},
+        "effects": {"type": "boolean", "default": true}
+      }},
+      "Problem": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}},
+      "CreateProject": {"type": "object", "required": ["input"], "properties": {
+        "input": {"oneOf": [
+          {"type": "object", "required": ["type", "topic"], "properties": {
+            "type": {"const": "topic"}, "topic": {"type": "string", "maxLength": 300},
+            "sources": {"type": "array", "maxItems": 12, "items": {"type": "object", "required": ["title", "excerpt"], "properties": {
+              "title": {"type": "string", "maxLength": 200}, "excerpt": {"type": "string", "maxLength": 1600}, "url": {"type": "string", "format": "uri"}
+            }}}
+          }},
+          {"type": "object", "required": ["type", "title", "text"], "properties": {
+            "type": {"const": "paper-text"}, "title": {"type": "string"}, "text": {"type": "string", "minLength": 40, "maxLength": 100000}
+          }},
+          {"type": "object", "required": ["type", "url"], "properties": {
+            "type": {"const": "paper-url"}, "url": {"type": "string", "format": "uri"}, "title": {"type": "string"}
+          }}
+        ]},
+        "options": {"type": "object", "properties": {"language": {"$ref": "#/components/schemas/Language"},
+          "sceneCount": {"$ref": "#/components/schemas/SceneCount"}, "size": {"$ref": "#/components/schemas/Size"},
+          "modelProvider": {"$ref": "#/components/schemas/ModelProvider"}, "stylePresetId": {"type": "string"},
+          "narration": {"type": "boolean", "default": true},
+          "music": {"type": "boolean", "default": true}, "voiceStyle": {"$ref": "#/components/schemas/VoiceStyle"},
+          "musicTrack": {"$ref": "#/components/schemas/MusicTrack"}, "effects": {"type": "boolean", "default": true}}}
+      }},
+      "ProjectSummary": {"type": "object", "properties": {
+        "id": {"type": "string", "format": "uuid"}, "createdAt": {"type": "string", "format": "date-time"},
+        "latestRevisionId": {"type": "string", "format": "uuid"}, "revisionIds": {"type": "array", "items": {"type": "string", "format": "uuid"}}
+      }},
+      "Submission": {"type": "object", "required": ["projectId", "revisionId", "href", "accepted"], "properties": {
+        "projectId": {"type": "string", "format": "uuid"}, "revisionId": {"type": "string", "format": "uuid"},
+        "href": {"type": "string"}, "accepted": {"type": "boolean"}, "queueError": {"type": "string"}
+      }},
+      "Revision": {"type": "object", "required": ["projectId", "revisionId", "status", "stage", "scenes", "artifacts"], "properties": {
+        "projectId": {"type": "string", "format": "uuid"}, "revisionId": {"type": "string", "format": "uuid"},
+        "sourceRevisionId": {"type": "string", "format": "uuid"}, "changedScene": {"type": "string"},
+        "status": {"enum": ["queued", "running", "succeeded", "failed", "cancelled"]}, "stage": {"type": "string"},
+        "queuedAt": {"type": "string", "format": "date-time", "description": "Time this revision was submitted for production."},
+        "startedAt": {"type": "string", "format": "date-time", "description": "Time when the worker started processing this revision, when recorded."},
+        "finishedAt": {"type": "string", "format": "date-time", "description": "Time when this revision reached a terminal state."},
+        "elapsedSeconds": {"type": "integer", "minimum": 0, "description": "Wall-clock seconds since submission, including queue time. Frozen when the revision finishes."},
+        "creditReserved": {"type": "integer", "minimum": 0}, "creditCharged": {"type": "integer", "minimum": 0},
+        "timingEstimated": {"type": "boolean", "description": "True when an older revision's submission time was inferred from its saved request."},
+        "error": {"oneOf": [{"$ref": "#/components/schemas/Problem"}, {"type": "null"}]},
+        "evidence": {"type": "array", "items": {"type": "object"}}, "figures": {"type": "array", "items": {"type": "object"}},
+        "scenes": {"type": "array", "items": {"type": "object", "properties": {
+          "id": {"type": "string"}, "title": {"type": "string"}, "status": {"enum": ["preparing", "rendering", "ready"]},
+          "narration": {"type": "string"}, "paramSchema": {"type": "object"}, "params": {"type": "object"},
+          "artifacts": {"type": "object", "additionalProperties": {"type": "string"}}
+        }}},
+        "artifacts": {"type": "object", "additionalProperties": {"type": "string"}}
+      }}
+    }
+  }
+}

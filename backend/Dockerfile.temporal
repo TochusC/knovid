@@ -1,0 +1,4 @@
+FROM temporalio/temporal:1.10.1
+USER root
+RUN install -d -o temporal -g temporal /var/lib/temporal
+USER temporal

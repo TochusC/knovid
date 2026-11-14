@@ -1,0 +1,56 @@
+{
+  "music": [
+    {
+      "id": "first-light",
+      "title": "First Light Particles",
+      "author": "Yoiyami",
+      "source": "https://opengameart.org/node/182244",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Loudness adjusted and transcoded from the author's MP3",
+      "file": "first-light.m4a"
+    },
+    {
+      "id": "exploration",
+      "title": "Exploration Theme",
+      "author": "Cleyton Kauffman",
+      "source": "https://opengameart.org/content/exploration-theme",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Loudness adjusted and transcoded from the author's Ogg",
+      "file": "exploration.m4a"
+    }
+  ],
+  "effects": [
+    {
+      "id": "transition",
+      "title": "Interface Sounds — maximize_005",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV",
+      "file": "transition.wav"
+    },
+    {
+      "id": "accent",
+      "title": "Interface Sounds — pluck_002",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV",
+      "file": "accent.wav"
+    },
+    {
+      "id": "resolve",
+      "title": "Interface Sounds — confirmation_003",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "edits": "Band-limited and transcoded to WAV",
+      "file": "resolve.wav"
+    }
+  ]
+}
