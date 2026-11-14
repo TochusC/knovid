@@ -128,8 +128,20 @@ function drawOrbit(context: CanvasRenderingContext2D, time: number, palette: Art
   circle(context, -46, -9, 17);
   context.fill();
 
-  const angle = -0.7 + time * 0.25;
+  const meanAngle = -0.7 + time * 0.4;
+  const angle = meanAngle - Math.sin(meanAngle) * 0.27;
   const earth = { x: Math.cos(angle) * 185, y: Math.sin(angle) * 105 };
+  context.lineCap = "round";
+  context.lineWidth = 3;
+  context.strokeStyle = palette.secondary;
+  for (let segment = 6; segment > 0; segment -= 1) {
+    const start = angle - segment * 0.12;
+    context.globalAlpha = (7 - segment) * 0.105;
+    context.beginPath();
+    context.ellipse(0, 0, 185, 105, 0, start, start + 0.12);
+    context.stroke();
+  }
+  context.globalAlpha = 1;
   context.strokeStyle = palette.mutedLine;
   context.lineWidth = 1;
   context.beginPath();
@@ -211,10 +223,11 @@ function drawProbability(context: CanvasRenderingContext2D, time: number, palett
   for (let index = 0; index < 13; index += 1) {
     const distance = (index - 6) / 2.5;
     const height = Math.exp(-distance * distance / 2) * 168;
-    const movement = Math.sin(time * 1.2 + index * 0.3) * 2;
+    const variation = Math.sin(time * 2.1 - index * 0.52);
+    const heightOffset = variation * Math.min(height * 0.36, 8);
     context.fillStyle = index === 6 ? palette.primary : index > 3 && index < 9 ? palette.secondary : palette.secondarySoft;
     context.beginPath();
-    context.roundRect(218 + index * 24, baseline - height + movement, 16, height - movement, [4, 4, 0, 0]);
+    context.roundRect(218 + index * 24, baseline - height - heightOffset, 16, height + heightOffset, [4, 4, 0, 0]);
     context.fill();
   }
 
@@ -230,11 +243,11 @@ function drawProbability(context: CanvasRenderingContext2D, time: number, palett
   context.lineWidth = 2;
   context.stroke();
 
-  const floating = Math.sin(time * 0.9) * 4;
-  drawDie(context, 130, 153 + floating, -0.2 + Math.sin(time * 0.5) * 0.025, [
+  const floating = Math.sin(time * 1.8);
+  drawDie(context, 130, 153 + floating * 9, -0.2 + floating * 0.08, [
     { x: -15, y: -15 }, { x: 15, y: -15 }, { x: 0, y: 0 }, { x: -15, y: 15 }, { x: 15, y: 15 },
   ], palette);
-  drawDie(context, 185, 230 - floating, 0.19, [
+  drawDie(context, 185, 230 - floating * 6, 0.19 - floating * 0.055, [
     { x: -15, y: -15 }, { x: 15, y: 15 }, { x: 0, y: 0 },
   ], palette);
 
@@ -272,12 +285,33 @@ function drawNeural(context: CanvasRenderingContext2D, time: number, palette: Ar
   }
 
   const path = [layers[0][1], layers[1][1], layers[2][1], layers[3][0]];
+  const signal = (0.34 + time * 0.85) % 3.65;
   context.beginPath();
   context.moveTo(path[0].x, path[0].y);
   for (const point of path.slice(1)) context.lineTo(point.x, point.y);
   context.strokeStyle = palette.line;
   context.lineWidth = 2;
   context.stroke();
+
+  context.save();
+  context.lineWidth = 3;
+  context.lineCap = "round";
+  context.strokeStyle = palette.primary;
+  const leadingSegment = Math.min(Math.floor(signal), path.length - 2);
+  const fraction = Math.min(1, signal - leadingSegment);
+  const start = path[leadingSegment];
+  const end = path[leadingSegment + 1];
+  const x = start.x + (end.x - start.x) * fraction;
+  const y = start.y + (end.y - start.y) * fraction;
+  context.beginPath();
+  context.moveTo(path[0].x, path[0].y);
+  for (let index = 1; index <= leadingSegment; index += 1) {
+    context.lineTo(path[index].x, path[index].y);
+  }
+  context.lineTo(x, y);
+  context.globalAlpha = signal < 3 ? 0.54 : 0.54 * (3.65 - signal) / 0.65;
+  context.stroke();
+  context.restore();
 
   for (const [layerIndex, layer] of layers.entries()) {
     for (const [nodeIndex, point] of layer.entries()) {
@@ -298,17 +332,22 @@ function drawNeural(context: CanvasRenderingContext2D, time: number, palette: Ar
 
   context.strokeStyle = palette.line;
   context.lineWidth = 1;
-  circle(context, 524, 180, 34 + Math.sin(time * 1.1) * 3);
+  circle(context, 524, 180, 34);
   context.stroke();
 
-  const progress = (0.34 + time * 0.4) % 3;
-  const segment = Math.floor(progress);
-  const fraction = progress - segment;
-  const start = path[segment];
-  const end = path[segment + 1];
-  context.fillStyle = palette.primaryHighlight;
-  circle(context, start.x + (end.x - start.x) * fraction, start.y + (end.y - start.y) * fraction, 4);
-  context.fill();
+  if (signal < 3) {
+    context.fillStyle = palette.primaryHighlight;
+    circle(context, x, y, 5);
+    context.fill();
+  } else {
+    const pulse = (signal - 3) / 0.65;
+    context.globalAlpha = (1 - pulse) * 0.8;
+    context.strokeStyle = palette.primaryHighlight;
+    context.lineWidth = 2;
+    circle(context, 524, 180, 25 + pulse * 24);
+    context.stroke();
+    context.globalAlpha = 1;
+  }
 }
 
 const painters: Record<ArtworkKind, (context: CanvasRenderingContext2D, time: number, palette: ArtworkPalette) => void> = {
@@ -319,6 +358,11 @@ const painters: Record<ArtworkKind, (context: CanvasRenderingContext2D, time: nu
 
 export function KnowledgeArtwork({ kind, animated = false, className }: KnowledgeArtworkProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const engaged = useRef(animated);
+
+  useEffect(() => {
+    engaged.current = animated;
+  }, [animated]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -329,7 +373,9 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
     const root = document.documentElement;
     const currentPalette = () => palettes[root.classList.contains("dark") || root.dataset.theme === "dark" ? "dark" : "light"];
     let palette = currentPalette();
-    let animationFrame = 0;
+    let animationFrame: number | undefined;
+    let lastPaint: number | undefined;
+    let visible = typeof IntersectionObserver === "undefined";
     let time = 0;
 
     const draw = () => {
@@ -345,18 +391,28 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
       draw();
     };
 
-    const startAnimation = () => {
-      window.cancelAnimationFrame(animationFrame);
-      time = 0;
-      draw();
-      if (!animated || motionPreference.matches) return;
-      const startedAt = performance.now();
-      const tick = (now: number) => {
-        time = (now - startedAt) / 1000;
+    const tick = (now: number) => {
+      const elapsed = lastPaint === undefined ? 0 : now - lastPaint;
+      if (lastPaint === undefined || engaged.current || elapsed >= 32) {
+        lastPaint = now;
+        time += Math.min(elapsed, 64) / 1000 * (engaged.current ? 1.3 : 0.85);
         draw();
-        animationFrame = window.requestAnimationFrame(tick);
-      };
+      }
       animationFrame = window.requestAnimationFrame(tick);
+    };
+
+    const updateAnimation = () => {
+      if (!visible || document.hidden || motionPreference.matches) {
+        if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
+        animationFrame = undefined;
+        lastPaint = undefined;
+        if (motionPreference.matches) {
+          time = 0;
+          draw();
+        }
+      } else if (animationFrame === undefined) {
+        animationFrame = window.requestAnimationFrame(tick);
+      }
     };
 
     const observer = new ResizeObserver(resize);
@@ -366,17 +422,25 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
       draw();
     });
     themeObserver.observe(root, { attributes: true, attributeFilter: ["class", "data-theme"] });
-    motionPreference.addEventListener("change", startAnimation);
+    const visibilityObserver = visible ? undefined : new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      updateAnimation();
+    });
+    visibilityObserver?.observe(canvas);
+    document.addEventListener("visibilitychange", updateAnimation);
+    motionPreference.addEventListener("change", updateAnimation);
     resize();
-    startAnimation();
+    updateAnimation();
 
     return () => {
       observer.disconnect();
       themeObserver.disconnect();
-      motionPreference.removeEventListener("change", startAnimation);
-      window.cancelAnimationFrame(animationFrame);
+      visibilityObserver?.disconnect();
+      document.removeEventListener("visibilitychange", updateAnimation);
+      motionPreference.removeEventListener("change", updateAnimation);
+      if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
     };
-  }, [kind, animated]);
+  }, [kind]);
 
   return (
     <canvas

@@ -96,6 +96,12 @@ const ideas = [
     subtitle: "把看不见的规律，变成看得懂的运动。",
     prompt:
       "为什么行星越靠近太阳，运行得越快？用轨道动画解释开普勒第二定律，讲给初次接触天文学的人听。",
+    sample: {
+      asset: "orbit",
+      seconds: 12,
+      description: "比较行星在相同时间内走过的轨迹和扫过的面积。",
+      audio: "中文旁白",
+    },
   },
   {
     kind: "probability" as const,
@@ -104,6 +110,13 @@ const ideas = [
     subtitle: "从一枚骰子开始，重新认识概率。",
     prompt:
       "用掷骰子的故事解释概率与大数定律，展示次数增多时频率如何逐渐趋于稳定，讲给没有统计学基础的人听。",
+    sample: {
+      asset: "dice",
+      seconds: 20,
+      description: "反复掷一枚骰子，观察掷出六点的频率如何接近六分之一。",
+      audio: "背景音乐",
+      poster: "/examples/dice.webp",
+    },
   },
   {
     kind: "neural" as const,
@@ -112,6 +125,13 @@ const ideas = [
     subtitle: "顺着一次信息传递，走进神经网络。",
     prompt:
       "用识别手写数字的例子，讲解神经网络怎样从数据中学习。用直观动画解释输入、隐藏层、输出和训练。",
+    sample: {
+      asset: "neural-network",
+      seconds: 20,
+      description: "跟着一个手写数字经过网络的各层，看看训练如何改变它的判断。",
+      audio: "背景音乐",
+      poster: "/examples/neural-network.webp",
+    },
   },
 ];
 
@@ -126,7 +146,8 @@ export default function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [guide, setGuide] = useState(false);
   const [loginRequest, setLoginRequest] = useState(0);
-  const [demo, setDemo] = useState(false);
+  const [demo, setDemo] = useState<(typeof ideas)[number] | null>(null);
+  const demoTrigger = useRef<HTMLElement | null>(null);
   const [access, setAccess] = useState<VisitorAccess | null>(null);
   const [accessError, setAccessError] = useState("");
   const accessRequest = useRef(0);
@@ -285,6 +306,11 @@ export default function App() {
     );
   }
 
+  function openDemo(idea: (typeof ideas)[number], trigger = document.activeElement) {
+    demoTrigger.current = trigger instanceof HTMLElement ? trigger : null;
+    setDemo(idea);
+  }
+
   async function createProject(input: CreateProjectInput) {
     let created: Project;
     try {
@@ -409,7 +435,7 @@ export default function App() {
         </span>
         <strong>好奇心，值得被分享。</strong>
         <p>把你知道的，讲给更多人听。</p>
-        <button onClick={() => setDemo(true)}>
+        <button onClick={(event) => openDemo(ideas[0], event.currentTarget)}>
           看看一支样片
           <ArrowUpRight size={14} />
         </button>
@@ -447,7 +473,7 @@ export default function App() {
           onEnter={(topic) =>
             topic ? newProject(topic) : navigate("/workspace")
           }
-          onDemo={() => setDemo(true)}
+          onDemo={() => openDemo(ideas[0])}
           onLogin={() => setLoginRequest((value) => value + 1)}
           accountLabel={access?.mode === "member" ? "我的账户" : undefined}
         />
@@ -590,7 +616,10 @@ export default function App() {
                     从一个好问题开始，把你的好奇变成一支精彩的知识视频。
                   </p>
                 </div>
-                <button className="sample-link" onClick={() => setDemo(true)}>
+                <button
+                  className="sample-link"
+                  onClick={(event) => openDemo(ideas[0], event.currentTarget)}
+                >
                   <span>
                     <Play size={13} fill="currentColor" />
                   </span>
@@ -630,9 +659,7 @@ export default function App() {
                       idea={idea}
                       index={index}
                       onSelect={() => newProject(idea.prompt)}
-                      onPreview={
-                        idea.kind === "orbit" ? () => setDemo(true) : undefined
-                      }
+                      onPreview={(button) => openDemo(idea, button)}
                     />
                   ))}
                 </div>
@@ -747,46 +774,60 @@ export default function App() {
           </Button>
         </DialogContent>
       </Dialog>
-      <Dialog open={demo} onOpenChange={setDemo}>
-        <DialogContent className="demo-dialog">
-          <DialogHeader>
-            <div className="dialog-eyebrow">KnoVid 作品示例 · 12 秒</div>
-            <DialogTitle>行星的速度，谁说了算？</DialogTitle>
-            <DialogDescription>
-              用轨道、速度和扫过的面积，把一个天文规律讲清楚。
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={demo !== null}
+        onOpenChange={(open) => {
+          if (!open) setDemo(null);
+        }}
+      >
+        <DialogContent
+          className="demo-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            demoTrigger.current?.focus();
+          }}
+        >
           {demo && (
-            <video
-              className="demo-video"
-              controls
-              autoPlay
-              playsInline
-              src="/examples/orbit.mp4"
-            >
-              <track
-                kind="captions"
-                src="/examples/orbit.vtt"
-                srcLang="zh"
-                label="中文"
-              />
-            </video>
+            <>
+              <DialogHeader>
+                <div className="dialog-eyebrow">{demo.category} · {demo.sample.seconds} 秒</div>
+                <DialogTitle>{demo.title}</DialogTitle>
+                <DialogDescription>{demo.sample.description}</DialogDescription>
+              </DialogHeader>
+              <video
+                className="demo-video"
+                aria-label={demo.title}
+                controls
+                autoPlay
+                playsInline
+                poster={"poster" in demo.sample ? demo.sample.poster : undefined}
+                src={`/examples/${demo.sample.asset}.mp4`}
+              >
+                <track
+                  kind="captions"
+                  src={`/examples/${demo.sample.asset}.vtt`}
+                  srcLang="zh"
+                  label="中文"
+                />
+              </video>
+              <div className="demo-footer">
+                <span>
+                  <Clapperboard size={15} />
+                  程序化动画 · {demo.sample.audio}
+                </span>
+                <Button
+                  onClick={() => {
+                    demoTrigger.current = null;
+                    setDemo(null);
+                    newProject(demo.prompt);
+                  }}
+                >
+                  从这个主题开始
+                  <ArrowUpRight size={16} />
+                </Button>
+              </div>
+            </>
           )}
-          <div className="demo-footer">
-            <span>
-              <Clapperboard size={15} />
-              程序化动画 · 中文旁白
-            </span>
-            <Button
-              onClick={() => {
-                setDemo(false);
-                newProject(ideas[0].prompt);
-              }}
-            >
-              从这个主题开始
-              <ArrowUpRight size={16} />
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
       <Dialog open={guide} onOpenChange={setGuide}>
@@ -879,7 +920,7 @@ function IdeaCard({
   idea: (typeof ideas)[number];
   index: number;
   onSelect: () => void;
-  onPreview?: () => void;
+  onPreview: (button: HTMLButtonElement) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
@@ -896,16 +937,15 @@ function IdeaCard({
       <div className="idea-artwork">
         <KnowledgeArtwork kind={idea.kind} animated={hovered} />
         <span className="idea-category">{idea.category}</span>
-        {onPreview && (
-          <button
-            className="artwork-play"
-            onClick={onPreview}
-            aria-label="播放行星轨道样片"
-          >
-            <Play size={15} fill="currentColor" />
-            <span>观看样片</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className="artwork-play"
+          onClick={(event) => onPreview(event.currentTarget)}
+          aria-label={`观看样片 · ${idea.title}`}
+        >
+          <Play size={15} fill="currentColor" />
+          <span>观看样片</span>
+        </button>
       </div>
       <button className="idea-copy" onClick={onSelect}>
         <span>
