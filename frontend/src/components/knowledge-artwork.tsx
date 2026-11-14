@@ -358,11 +358,7 @@ const painters: Record<ArtworkKind, (context: CanvasRenderingContext2D, time: nu
 
 export function KnowledgeArtwork({ kind, animated = false, className }: KnowledgeArtworkProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engaged = useRef(animated);
-
-  useEffect(() => {
-    engaged.current = animated;
-  }, [animated]);
+  const setAnimationActive = useRef<((active: boolean) => void) | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -376,6 +372,7 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
     let animationFrame: number | undefined;
     let lastPaint: number | undefined;
     let visible = typeof IntersectionObserver === "undefined";
+    let active = false;
     let time = 0;
 
     const draw = () => {
@@ -393,16 +390,14 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
 
     const tick = (now: number) => {
       const elapsed = lastPaint === undefined ? 0 : now - lastPaint;
-      if (lastPaint === undefined || engaged.current || elapsed >= 32) {
-        lastPaint = now;
-        time += Math.min(elapsed, 64) / 1000 * (engaged.current ? 1.3 : 0.85);
-        draw();
-      }
+      lastPaint = now;
+      time += Math.min(elapsed, 64) / 1000 * 1.3;
+      draw();
       animationFrame = window.requestAnimationFrame(tick);
     };
 
     const updateAnimation = () => {
-      if (!visible || document.hidden || motionPreference.matches) {
+      if (!active || !visible || document.hidden || motionPreference.matches) {
         if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
         animationFrame = undefined;
         lastPaint = undefined;
@@ -415,6 +410,10 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
       }
     };
 
+    setAnimationActive.current = (value) => {
+      active = value;
+      updateAnimation();
+    };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     const themeObserver = new MutationObserver(() => {
@@ -430,9 +429,9 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
     document.addEventListener("visibilitychange", updateAnimation);
     motionPreference.addEventListener("change", updateAnimation);
     resize();
-    updateAnimation();
 
     return () => {
+      setAnimationActive.current = null;
       observer.disconnect();
       themeObserver.disconnect();
       visibilityObserver?.disconnect();
@@ -441,6 +440,10 @@ export function KnowledgeArtwork({ kind, animated = false, className }: Knowledg
       if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame);
     };
   }, [kind]);
+
+  useEffect(() => {
+    setAnimationActive.current?.(animated);
+  }, [kind, animated]);
 
   return (
     <canvas
