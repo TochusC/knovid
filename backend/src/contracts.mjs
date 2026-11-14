@@ -71,6 +71,9 @@ export function creation(body, pdfBuffer) {
   const size = options.size ?? '1080p';
   const modelProvider = options.modelProvider ?? 'standard';
   if (!isModelId(modelProvider)) invalid('Unknown model provider');
+  if (options.visualMode !== undefined && !['auto', 'animation', 'footage'].includes(options.visualMode)) {
+    invalid('options.visualMode must be auto, animation or footage');
+  }
   if (options.narration !== undefined && typeof options.narration !== 'boolean') invalid('options.narration must be a boolean');
   if (options.stylePresetId !== undefined && (typeof options.stylePresetId !== 'string' ||
     !(isBuiltinStyleId(options.stylePresetId) || options.stylePresetId === 'auto' || customStyleId.test(options.stylePresetId)))) {
@@ -113,6 +116,7 @@ export function creation(body, pdfBuffer) {
       ...(modelProvider !== 'standard' && {modelProvider}),
       ...(options.narration === false && {narration: false}),
       ...(options.stylePresetId !== undefined && {stylePresetId: options.stylePresetId}),
+      ...(options.visualMode !== undefined && {visualMode: options.visualMode}),
       ...soundSettings(options, language)},
   };
 }

@@ -176,8 +176,9 @@ export default function App() {
     };
   }, [syncRoute]);
 
+  const shouldLoadProjectList = route.page !== "landing" && route.page !== "project";
   useEffect(() => {
-    if (route.page === "landing") return;
+    if (!shouldLoadProjectList) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     let controller: AbortController;
@@ -213,7 +214,7 @@ export default function App() {
       clearTimeout(timer);
       controller?.abort();
     };
-  }, [refreshKey, route.page === "landing"]);
+  }, [refreshKey, shouldLoadProjectList]);
 
   const refreshAccess = useCallback(async (signal?: AbortSignal) => {
     const requestId = ++accessRequest.current;
@@ -252,12 +253,15 @@ export default function App() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     let controller: AbortController;
+    let terminal = false;
     setProjectError("");
     async function load() {
       controller = new AbortController();
       try {
         const result = await api.getProject(projectId, controller.signal);
         if (!alive) return;
+        terminal = result.status === "ready" || result.status === "failed";
+        setConnection("online");
         setProject((current) =>
           current?.id === result.id &&
           current.revision !== undefined &&
@@ -268,12 +272,19 @@ export default function App() {
         );
         setProjectError("");
       } catch (cause) {
-        if (alive)
+        if (alive) {
+          if (cause instanceof ApiError && cause.status === 404) {
+            setConnection("online");
+          } else {
+            setConnection(cause instanceof ApiError && cause.status === 401 && cause.code !== "API_AUTH_REQUIRED"
+              ? "unauthorized" : "offline");
+          }
           setProjectError(
             cause instanceof Error ? cause.message : "暂时无法打开这个作品。",
           );
+        }
       } finally {
-        if (alive) timer = setTimeout(load, document.hidden ? 15000 : 5000);
+        if (alive) timer = setTimeout(load, terminal ? 60_000 : document.hidden ? 15_000 : 5_000);
       }
     }
     void load();
@@ -379,6 +390,9 @@ export default function App() {
   function updateProject(updated: Project) {
     window.dispatchEvent(new Event("knovid:credits-changed"));
     void refreshAccess();
+    if (updated.revisionId !== project?.revisionId && updated.status !== "ready" && updated.status !== "failed") {
+      setRefreshKey((value) => value + 1);
+    }
     setProject(updated);
     setProjects((previous) => [
       updated,

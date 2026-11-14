@@ -35,6 +35,7 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
   const loadAdapter = async base => {
     const javascript = stripTypeScriptTypes(source
       .replace('import.meta.env.VITE_API_BASE_URL', JSON.stringify(base))
+      .replace('import.meta.env.VITE_FOOTAGE_ENABLED', '"true"')
       .replace('"./types.ts"', JSON.stringify(typesURL)));
     return import('data:text/javascript;base64,' + Buffer.from(javascript).toString('base64'));
   };
@@ -59,7 +60,7 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
 
   await t.test('health, JSON creation and list return usable frontend projects', async () => {
     assert.equal((await api.getHealth()).status, 'ok');
-    project = await api.createProject(input);
+    project = await api.createProject({...input, visualMode: 'animation'});
     assert.match(project.id, /^[a-f0-9-]{36}$/);
     assert.equal(project.title, input.topic);
     assert.equal(project.status, 'queued');
@@ -70,6 +71,7 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     assert.equal(stored.options.width, 1280);
     assert.equal(stored.options.sceneCount, 2);
     assert.equal(stored.options.music, false);
+    assert.equal(stored.options.visualMode, 'animation');
     const list = await api.listProjects();
     assert.equal(list[0].id, project.id);
     assert.equal(list[0].title, input.topic);
@@ -86,15 +88,18 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
 
   await t.test('raw PDF upload preserves filename and supported settings', async () => {
     const pdf = new File(['%PDF-1.7\nfixture\n%%EOF'], '中文论文.pdf', {type: 'application/pdf'});
-    const paper = await api.createProject({...input, inputType: 'paper', topic: undefined, paperFile: pdf, music: true, size: '360p'});
+    const paper = await api.createProject({...input, inputType: 'paper', topic: undefined, paperFile: pdf, music: true, size: '360p', visualMode: 'footage'});
     assert.equal(paper.input.type, 'paper');
     assert.equal(paper.input.fileName, '中文论文.pdf');
     const base = join(temporary, 'projects', paper.id);
     assert.equal((await readFile(join(base, 'paper.pdf'))).toString(), await pdf.text());
-    assert.equal(JSON.parse(await readFile(join(base, 'input.json'))).options.width, 640);
+    const settings = JSON.parse(await readFile(join(base, 'input.json'))).options;
+    assert.equal(settings.width, 640);
+    assert.equal(settings.visualMode, 'footage');
     const silentPaper = await api.createProject({...input, paperFile: pdf, music: false});
     const silentSettings = JSON.parse(await readFile(join(temporary, 'projects', silentPaper.id, 'input.json')));
     assert.equal(silentSettings.options.music, false);
+    assert.equal(silentSettings.options.visualMode, undefined);
   });
 
   await t.test('paper links use the backend paper-url contract', async () => {
@@ -102,7 +107,7 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     assert.equal(paper.input.paperUrl, 'https://arxiv.org/pdf/1706.03762');
   });
 
-  await t.test('paid providers, saved styles and optional narration are serialized for each creation path', async () => {
+  await t.test('paid providers, saved styles, visual mode and optional narration are serialized for each creation path', async () => {
     const {api: modelApi} = await loadAdapter(origin + '/paid-provider-test');
     const pricing = {id: 'deepseek', creditsPerScene: 1, creditsPerDurationUnit: 1, durationUnitSeconds: 30, maxSceneSeconds: 60};
     const memberAccess = {
@@ -123,11 +128,11 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
       if (options.method === 'POST') {
         if (options.headers.get('content-type') === 'application/pdf') {
           provider = route.searchParams.get('modelProvider') || undefined;
-          requests.push(['pdf', provider, route.searchParams.get('stylePresetId'), route.searchParams.get('narration')]);
+          requests.push(['pdf', provider, route.searchParams.get('stylePresetId'), route.searchParams.get('narration'), route.searchParams.get('visualMode')]);
         } else {
           const payload = JSON.parse(options.body);
           provider = payload.options.modelProvider;
-          requests.push([payload.input.type, provider, payload.options.stylePresetId, payload.options.narration]);
+          requests.push([payload.input.type, provider, payload.options.stylePresetId, payload.options.narration, payload.options.visualMode]);
         }
         return Response.json({projectId, revisionId, accepted: true}, {status: 202});
       }
@@ -141,20 +146,20 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     try {
       assert.deepEqual((await modelApi.getAccess()).modelProviders, [pricing]);
       assert.deepEqual(await modelApi.listStylePresets(), [preset]);
-      const paid = await modelApi.createProject({...input, modelProvider: 'deepseek', stylePresetId: 'default'});
+      const paid = await modelApi.createProject({...input, modelProvider: 'deepseek', stylePresetId: 'default', visualMode: 'auto'});
       assert.equal(paid.settings.modelProvider, 'deepseek');
       await modelApi.createProject({
         ...input, inputType: 'paper', paperUrl: 'https://arxiv.org/abs/1706.03762', modelProvider: 'openrouter',
-        stylePresetId: 'auto', narration: false,
+        stylePresetId: 'auto', narration: false, visualMode: 'animation',
       });
       await modelApi.createProject({
         ...input, inputType: 'paper', paperFile: new File(['%PDF-1.7'], 'paper.pdf'), modelProvider: 'openrouter',
-        stylePresetId: preset.id, narration: false,
+        stylePresetId: preset.id, narration: false, visualMode: 'footage',
       });
       await modelApi.createProject({...input, modelProvider: 'standard'});
       assert.deepEqual(requests, [
-        ['topic', 'deepseek', 'default', undefined], ['paper-url', 'openrouter', 'auto', false],
-        ['pdf', 'openrouter', preset.id, 'false'], ['topic', undefined, undefined, undefined],
+        ['topic', 'deepseek', 'default', undefined, 'auto'], ['paper-url', 'openrouter', 'auto', false, 'animation'],
+        ['pdf', 'openrouter', preset.id, 'false', 'footage'], ['topic', undefined, undefined, undefined, undefined],
       ]);
       access = {...memberAccess, mode: 'guest'};
       modelApi.resetIdentity();
@@ -165,6 +170,7 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
   });
 
   await t.test('input validation and server failures use actionable Chinese messages', async () => {
+    await assert.rejects(api.createProject({...input, visualMode: 'invalid-mode'}), error => error.code === 'INVALID_INPUT');
     await assert.rejects(api.createProject({...input, topic: '长'.repeat(301)}), error => error.code === 'INVALID_INPUT' && error.message.includes('300') && !error.message.includes('input.topic'));
     await assert.rejects(api.createProject({...input, inputType: 'paper', paperUrl: 'https://example.com/paper.pdf'}), error => error.message.includes('上传 PDF') && !error.message.includes('hosts:'));
     const english = await api.createProject({...input, topic: 'Kepler laws', language: 'en'});

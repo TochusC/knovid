@@ -47,6 +47,7 @@
           {"in": "query", "name": "narration", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "modelProvider", "schema": {"$ref": "#/components/schemas/ModelProvider"}, "description": "PDF 上传时选择制作模型"},
           {"in": "query", "name": "stylePresetId", "schema": {"$ref": "#/components/schemas/StylePresetId"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "visualMode", "schema": {"$ref": "#/components/schemas/VisualMode"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "musicTrack", "schema": {"$ref": "#/components/schemas/MusicTrack"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "effects", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "voiceStyle", "schema": {"$ref": "#/components/schemas/VoiceStyle"}, "description": "仅用于 PDF 请求"}
@@ -188,6 +189,7 @@
       "Language": {"type": "string", "enum": ["zh", "en"], "default": "zh"},
       "SceneCount": {"type": "integer", "minimum": 2, "maximum": 32, "default": 3, "description": "登录后可选择 2–32 个镜头。访客试用固定制作 3 个镜头。"},
       "ModelProvider": {"type": "string", "enum": ["standard", "glm-5.3", "deepseek", "deepseek-pro", "openrouter-astra", "openrouter-sol", "openrouter"], "default": "standard", "description": "制作模型 ID。openrouter 仅用于兼容已有作品和客户端。"},
+      "VisualMode": {"type": "string", "enum": ["auto", "animation", "footage"], "description": "画面方式偏好。支持真实影像的部署可根据素材选择自动搭配、程序动画或优先真实影像。"},
       "StylePresetId": {"type": "string", "anyOf": [
         {"enum": ["default", "paper-diagram", "blueprint", "warm-story", "bold-geometry", "auto"]},
         {"pattern": "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$"}
@@ -218,6 +220,7 @@
         "options": {"type": "object", "properties": {"language": {"$ref": "#/components/schemas/Language"},
           "sceneCount": {"$ref": "#/components/schemas/SceneCount"}, "size": {"$ref": "#/components/schemas/Size"},
           "modelProvider": {"$ref": "#/components/schemas/ModelProvider"}, "stylePresetId": {"$ref": "#/components/schemas/StylePresetId"},
+          "visualMode": {"$ref": "#/components/schemas/VisualMode"},
           "narration": {"type": "boolean", "default": true},
           "music": {"type": "boolean", "default": true}, "voiceStyle": {"$ref": "#/components/schemas/VoiceStyle"},
           "musicTrack": {"$ref": "#/components/schemas/MusicTrack"}, "effects": {"type": "boolean", "default": true}}}

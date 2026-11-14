@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  Film,
   FileText,
   Info,
   Lightbulb,
@@ -42,6 +43,7 @@ import {
   type ModelProvider,
   type StylePreset,
   type VisitorAccess,
+  type VisualMode,
 } from "@/lib/types";
 import { api, apiCapabilities } from "@/lib/api";
 import { builtinStyles, isBuiltinStyleId } from "@/lib/builtin-styles";
@@ -62,6 +64,11 @@ const modelGroups = [
   { name: "DeepSeek", models: ["deepseek", "deepseek-pro"] },
   { name: "OpenRouter", models: ["openrouter-astra", "openrouter-sol"] },
 ] as const satisfies ReadonlyArray<{ name: string; models: readonly ModelProvider[] }>;
+const visualModeLabels: Record<VisualMode, string> = {
+  auto: "画面自动搭配",
+  animation: "程序动画",
+  footage: "优先真实影像",
+};
 const audiences = [
   "对这个主题感兴趣的普通人",
   "中小学生",
@@ -105,6 +112,7 @@ export function CreateWorkspace({
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
   const [manualSceneCount, setManualSceneCount] = useState<string | null>(null);
   const [modelProvider, setModelProvider] = useState<ModelProvider>("standard");
+  const [visualMode, setVisualMode] = useState<VisualMode>("auto");
   const [size, setSize] = useState<"360p" | "720p" | "1080p">("1080p");
   const [language, setLanguage] = useState<"zh" | "en">("zh");
   const [music, setMusic] = useState(true);
@@ -268,6 +276,7 @@ export function CreateWorkspace({
         aspectRatio,
         sceneCount: selectedSceneCount,
         modelProvider,
+        visualMode: apiCapabilities.footage ? visualMode : undefined,
         size,
         language,
         music,
@@ -581,6 +590,23 @@ export function CreateWorkspace({
               ))}
             </SelectContent>
           </Select>
+          {apiCapabilities.footage && (
+            <Select value={visualMode} onValueChange={(value) => setVisualMode(value as VisualMode)} disabled={pending}>
+              <SelectTrigger aria-label="画面方式" aria-describedby="creation-visual-help" className="setting-select">
+                <Film size={15} aria-hidden="true" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>找不到合适影像时会使用动画</SelectLabel>
+                  {Object.entries(visualModeLabels).map(([mode, label]) => (
+                    <SelectItem key={mode} value={mode}>{label}</SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+              <span id="creation-visual-help" className="sr-only">找不到合适影像时会使用动画。</span>
+            </Select>
+          )}
           <Select
             value={modelProvider}
             onValueChange={(value) => {

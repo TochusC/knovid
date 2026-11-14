@@ -6,6 +6,7 @@ import {designSound, mixVideo} from '../mix.mjs';
 import {assetFile, catalog} from '../sound.mjs';
 import {requireTotalDuration} from '../guest-limits.mjs';
 import {longProductionThreshold} from '../scene-limits.mjs';
+import {makePlayback} from '../playback.mjs';
 
 function timestamp(seconds) {
   const millis = Math.round(seconds * 1000);
@@ -88,8 +89,17 @@ export async function assemble(job, ids, signal) {
       }
     }
     await run('zip', ['-q', '-r', join(work, 'project.zip'), '.'], {signal, cwd: pack, timeout: longProduction ? 240_000 : 120_000});
+    const playback = join(work, 'playback.mp4');
+    try {
+      await makePlayback(output, playback, {signal, timeout: mediaTimeout});
+    } catch (error) {
+      signal?.throwIfAborted();
+      console.warn(JSON.stringify({event: 'playback_failed', projectId: job.projectId, revisionId: job.revisionId,
+        code: error.code || error.name}));
+    }
     await rename(output, join(dir, 'video.mp4'));
     await rename(join(work, 'project.zip'), join(dir, 'project.zip'));
+    if (await maybe(playback)) await rename(playback, join(dir, 'playback.mp4'));
     await json(manifestFile, manifest);
   } finally {
     await rm(work, {recursive: true, force: true});

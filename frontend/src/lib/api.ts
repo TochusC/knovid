@@ -17,6 +17,7 @@ export const apiCapabilities = {
   manualSceneRender: false,
   manualProjectRender: false,
   pdfMusic: true,
+  footage: import.meta.env.VITE_FOOTAGE_ENABLED === "true",
 } as const;
 
 interface AcceptedOperation { projectId: string; revisionId: string }
@@ -45,6 +46,8 @@ interface BackendScene {
   params?: Scene["parameters"];
   paramSchema?: Record<string, SceneParameterSchema>;
   issues?: string[];
+  mediaMode?: string;
+  mediaCredits?: unknown;
   artifacts: Record<string, string>;
 }
 
@@ -269,6 +272,32 @@ const revisionPath = (project: Project) => `${projectPath(project.id)}/revisions
 const assetUrl = (path?: string) => path ? `${API_BASE_URL}${path}` : undefined;
 const dispatchFailures = new Map<string, { revisionId: string; message: string }>();
 
+function mediaCreditLink(value: unknown, hosts: string[]): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:" && !url.username && !url.password && !url.port && hosts.includes(url.hostname)) {
+      return url.href;
+    }
+  } catch {
+    // Keep credit text when its link does not pass validation.
+  }
+}
+
+function mediaCredits(value: unknown): Scene["mediaCredits"] {
+  if (!Array.isArray(value)) return undefined;
+  return value.flatMap((credit) => {
+    if (!credit || typeof credit.title !== "string" || !credit.title.trim()) return [];
+    return [{
+      title: credit.title,
+      author: typeof credit.author === "string" ? credit.author : undefined,
+      sourceUrl: mediaCreditLink(credit.sourceUrl, ["commons.wikimedia.org"]),
+      license: typeof credit.license === "string" ? credit.license : undefined,
+      licenseUrl: mediaCreditLink(credit.licenseUrl, ["creativecommons.org", "www.creativecommons.org"]),
+    }];
+  });
+}
+
 function normalizeProject(raw: BackendProject, editingSource?: BackendRevision): Project {
   if (!raw?.id || !raw.latest || !Array.isArray(raw.latest.scenes)) throw new ApiError("项目数据格式不正确，请检查后端接口。", 0, "INVALID_RESPONSE");
   const revision = raw.latest;
@@ -282,6 +311,7 @@ function normalizeProject(raw: BackendProject, editingSource?: BackendRevision):
   // expose its media or timing as output from the latest failed revision.
   const sceneData = editingSource ? editingSource.scenes.map((scene): BackendScene => ({
     ...scene, artifacts: {}, durationFrames: undefined, status: "preparing",
+    mediaMode: undefined, mediaCredits: undefined,
   })) : revision.scenes;
   const scenes: Scene[] = sceneData.map((scene) => ({
     id: scene.id, title: scene.title, narration: scene.narration || "", visualDescription: scene.visual || "",
@@ -289,6 +319,9 @@ function normalizeProject(raw: BackendProject, editingSource?: BackendRevision):
     status: scene.status === "ready" ? "ready" : scene.status === "rendering" ? "rendering"
       : revision.status === "failed" ? "failed" : revision.status === "running" ? "generating" : "pending",
     previewUrl: assetUrl(scene.artifacts["frame.png"]), videoUrl: assetUrl(scene.artifacts["preview.mp4"]),
+    ...(scene.mediaMode === "footage" && (Array.isArray(scene.mediaCredits) || scene.status === "ready") && {
+      mediaMode: "footage" as const, mediaCredits: mediaCredits(scene.mediaCredits),
+    }),
     sourceIds: scene.evidenceIds || [], parameters: scene.params, parameterSchema: scene.paramSchema,
     error: scene.issues?.length ? scene.issues.join("；") : undefined,
   }));
@@ -330,7 +363,8 @@ function normalizeProject(raw: BackendProject, editingSource?: BackendRevision):
     },
     scenes,
     sources: (editingSource?.evidence || revision.evidence).map((source) => ({ id: source.id, title: source.title, url: source.url, page: source.page ?? undefined, excerpt: source.quote })),
-    videoUrl: assetUrl(revision.artifacts["video.mp4"]), downloadUrl: assetUrl(revision.artifacts["video.mp4"]),
+    videoUrl: assetUrl(revision.artifacts["playback.mp4"] || revision.artifacts["video.mp4"]),
+    downloadUrl: assetUrl(revision.artifacts["video.mp4"]),
     projectArchiveUrl: assetUrl(revision.artifacts["project.zip"]), error,
     revision: raw.revisionIds.length, revisionId: raw.latestRevisionId,
     editingSourceRevisionId: editingSource?.revisionId,
@@ -434,6 +468,7 @@ export const api = {
       language: input.language ?? "zh", sceneCount: input.sceneCount ?? 3, size: input.size ?? "1080p",
       music: input.music ?? true, modelProvider,
       narration: input.narration === false ? false : undefined, stylePresetId: input.stylePresetId,
+      visualMode: input.visualMode,
     };
     if (input.paperFile) {
       if (input.paperFile.size > 20 * 1024 * 1024) throw new ApiError("请选择不超过 20 MB 的 PDF。", 413, "BODY_TOO_LARGE");
@@ -441,6 +476,7 @@ export const api = {
       if (modelProvider) query.set("modelProvider", modelProvider);
       if (options.narration === false) query.set("narration", "false");
       if (options.stylePresetId) query.set("stylePresetId", options.stylePresetId);
+      if (options.visualMode) query.set("visualMode", options.visualMode);
       const result = await request<Submission>(`/v1/projects?${query}`, {
         method: "POST", headers: { "Content-Type": "application/pdf" }, body: input.paperFile, timeoutMs: 60_000, acceptQueueFailure: true,
       });

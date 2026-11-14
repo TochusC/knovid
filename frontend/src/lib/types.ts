@@ -1,6 +1,7 @@
 export type InputType = "topic" | "paper";
 
 export type ModelProvider = "standard" | "glm-5.3" | "deepseek" | "deepseek-pro" | "openrouter" | "openrouter-astra" | "openrouter-sol";
+export type VisualMode = "auto" | "animation" | "footage";
 
 export const modelProviderLabels: Record<ModelProvider, string> = {
   standard: "GLM-5.1 HighSpeed",
@@ -100,6 +101,14 @@ export interface SceneParameterSchema {
   max?: number;
 }
 
+export interface FootageCredit {
+  title: string;
+  author?: string;
+  sourceUrl?: string;
+  license?: string;
+  licenseUrl?: string;
+}
+
 export interface Scene {
   id: string;
   title: string;
@@ -109,6 +118,8 @@ export interface Scene {
   status: SceneStatus;
   previewUrl?: string;
   videoUrl?: string;
+  mediaMode?: "footage";
+  mediaCredits?: FootageCredit[];
   sourceIds: string[];
   parameters?: Record<string, string | number | boolean>;
   parameterSchema?: Record<string, SceneParameterSchema>;
@@ -169,6 +180,7 @@ export interface CreateProjectInput extends ProjectSettings {
   music?: boolean;
   narration?: boolean;
   stylePresetId?: string;
+  visualMode?: VisualMode;
 }
 
 export interface SceneUpdate {

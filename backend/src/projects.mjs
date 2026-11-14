@@ -45,15 +45,16 @@ export async function revisionTrace(executor, projectId, revisionId) {
 
 const origin = ({projectId, revisionId}) => '/v1/projects/' + projectId + '/revisions/' + revisionId;
 
+const finalArtifacts = ['video.mp4', 'playback.mp4', 'project.zip'];
 const fileNames = new Set([
-  'manifest.json', 'evidence.json', 'figures.json', 'plan.json', 'voice.json', 'subtitles.vtt', 'video.mp4', 'project.zip',
+  'manifest.json', 'evidence.json', 'figures.json', 'plan.json', 'voice.json', 'subtitles.vtt', ...finalArtifacts,
   'input.pdf', 'audio-credits.json',
 ]);
 const sceneFiles = new Set(['script.json', 'program.json', 'review.json', 'timing.json', 'scene.mjs', 'frame.png', 'preview.mp4', 'audio.wav']);
 
 export async function artifact(projectId, revisionId, name, scene) {
   const job = await checkedRevision(projectId, revisionId);
-  if (!scene && ['video.mp4', 'project.zip'].includes(name)) {
+  if (!scene && finalArtifacts.includes(name)) {
     const request = await read(requestFile(job));
     if (request.job?.billing && (await read(statusFile(job))).status !== 'succeeded') {
       throw new Fault('ARTIFACT_NOT_READY', 'The paid revision has not finished', {status: 404});
@@ -81,7 +82,7 @@ export async function revision(projectId, revisionId) {
   const timing = await revisionTiming(job, status);
   const prefix = origin(job);
   const names = [...fileNames, ...new Set((figures || []).map(figure => figure.artifact).filter(Boolean))]
-    .filter(name => !request.job?.billing || status.status === 'succeeded' || !['video.mp4', 'project.zip'].includes(name));
+    .filter(name => !request.job?.billing || status.status === 'succeeded' || !finalArtifacts.includes(name));
   const artifacts = Object.fromEntries((await Promise.all(names.map(async name => {
     const file = name === 'input.pdf' ? join(projectDir(projectId), 'paper.pdf') : join(dir, name);
     return await maybe(file) ? [name, prefix + '/artifacts/' + name] : null;

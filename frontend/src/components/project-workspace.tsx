@@ -219,6 +219,8 @@ export function ProjectWorkspace({
   const selectedSources = project.sources.filter((source) =>
     selected?.sourceIds.includes(source.id),
   );
+  const footageCredits = selected?.mediaCredits ?? [];
+  const sourceCount = selectedSources.length + footageCredits.length;
   const invalidParameters = Boolean(
     draft &&
     Object.entries(draft.parameters).some(([name, value]) => {
@@ -929,6 +931,7 @@ export function ProjectWorkspace({
                         className={scene.status === "failed" ? "has-error" : ""}
                       >
                         {sceneStatusLabels[scene.status]}
+                        {scene.mediaMode === "footage" && " · 真实影像"}
                       </span>
                     </span>
                   </button>
@@ -970,7 +973,12 @@ export function ProjectWorkspace({
           {selected && draft ? (
             <>
               <div className="workspace-editor-top">
-                <span>镜头 {String(selectedIndex + 1).padStart(2, "0")}</span>
+                <span>
+                  镜头 {String(selectedIndex + 1).padStart(2, "0")}
+                  {selected.mediaMode === "footage" && (
+                    <span className="workspace-footage-badge">真实影像</span>
+                  )}
+                </span>
                 {apiCapabilities.reorderScenes && (
                   <div>
                     <button
@@ -1039,8 +1047,8 @@ export function ProjectWorkspace({
                     tabIndex={tab === value ? 0 : -1}
                   >
                     {label}
-                    {value === "sources" && selectedSources.length > 0 && (
-                      <span>{selectedSources.length}</span>
+                    {value === "sources" && sourceCount > 0 && (
+                      <span>{sourceCount}</span>
                     )}
                   </button>
                 ))}
@@ -1211,7 +1219,7 @@ export function ProjectWorkspace({
                 )}
                 {tab === "sources" && (
                   <div className="workspace-sources">
-                    {selectedSources.length ? (
+                    {selectedSources.length > 0 && (
                       selectedSources.map((source) => (
                         <article key={source.id}>
                           <div>
@@ -1234,7 +1242,27 @@ export function ProjectWorkspace({
                           )}
                         </article>
                       ))
-                    ) : (
+                    )}
+                    {footageCredits.map((credit, index) => (
+                      <article key={`${credit.sourceUrl ?? credit.title}-${index}`}>
+                        <div>
+                          <Film size={15} aria-hidden="true" />
+                          <h3>{credit.title}</h3>
+                        </div>
+                        <span>真实影像素材{credit.author && ` · ${credit.author}`}</span>
+                        {credit.sourceUrl && (
+                          <a href={credit.sourceUrl} target="_blank" rel="noreferrer">
+                            素材出处 <ExternalLink size={12} aria-hidden="true" />
+                          </a>
+                        )}
+                        {credit.license && (credit.licenseUrl ? (
+                          <a className="workspace-credit-license" href={credit.licenseUrl} target="_blank" rel="noreferrer">
+                            {credit.license} <ExternalLink size={12} aria-hidden="true" />
+                          </a>
+                        ) : <span>许可 {credit.license}</span>)}
+                      </article>
+                    ))}
+                    {sourceCount === 0 && (
                       <div className="workspace-sources-empty">
                         <FileText size={24} />
                         <p>这个镜头还没有关联资料。</p>

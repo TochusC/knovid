@@ -205,7 +205,7 @@ export async function createApp({executor: injectedExecutor, authenticate} = {})
         let payload;
         if (contentType(req) === 'application/pdf') {
           pdf = await bytes(req, pdfLimit);
-          const options = Object.fromEntries(['language', 'size', 'musicTrack', 'voiceStyle', 'modelProvider', 'stylePresetId']
+          const options = Object.fromEntries(['language', 'size', 'musicTrack', 'voiceStyle', 'modelProvider', 'stylePresetId', 'visualMode']
             .filter(key => searchParams.has(key)).map(key => [key, searchParams.get(key)]));
           if (searchParams.has('sceneCount')) options.sceneCount = Number(searchParams.get('sceneCount'));
           if (searchParams.has('music')) {
