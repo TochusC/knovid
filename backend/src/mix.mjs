@@ -76,7 +76,7 @@ export async function mixVideo({visual, narration, target, duration, sound, sign
   }
   const combine = mix.length > 1 ? 'amix=inputs=' + mix.length + ':duration=first:normalize=0,' : '';
   filters.push(mix.join('') + combine +
-    'loudnorm=I=-16:TP=-2:LRA=8,aresample=48000,alimiter=limit=0.80:level=false:latency=true,volume=-1.5dB[out]');
+    'loudnorm=I=-16:TP=-2:LRA=8,aresample=48000:out_chlayout=stereo,alimiter=limit=0.80:level=false:latency=true,volume=-1.5dB[out]');
   args.push('-filter_complex', filters.join(';'), '-map', '0:v:0', '-map', '[out]', '-c:v', 'copy',
     '-c:a', 'aac', '-ar', '48000', '-b:a', '160k', '-movflags', '+faststart', target);
   await run('ffmpeg', args, {signal, timeout});

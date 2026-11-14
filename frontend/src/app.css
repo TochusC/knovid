@@ -516,6 +516,23 @@ h1 {
   color: var(--text-subtle);
   font-variant-numeric: tabular-nums;
 }
+.scene-count-suggestion,
+.scene-count-auto {
+  color: var(--accent-text);
+  font-size: 11px;
+}
+.scene-count-auto {
+  padding: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.scene-count-auto:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.scene-count-auto:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 .creation-estimate,
 .creation-scene-count-error {
   margin: 10px 0 0;
@@ -608,16 +625,48 @@ h1 {
   font-size: 12px;
   line-height: 1.5;
 }
-.creation-audio-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
+.creation-audio-trigger {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.creation-audio-options .music-option {
-  margin-top: 0;
+.creation-audio-trigger:hover:not(:disabled),
+.creation-audio-trigger[data-state="open"] {
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+.creation-audio-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.creation-audio-options {
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: 13px;
+  box-shadow: 0 6px 18px rgb(var(--shadow-color) / 0.12);
+}
+.creation-audio-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.creation-audio-options label:hover {
+  background: var(--surface-hover);
+}
+.creation-audio-options input {
+  accent-color: var(--primary);
+  width: 14px;
+  height: 14px;
 }
 .more-settings {
   display: flex;
@@ -1688,18 +1737,6 @@ h1 {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-.music-option {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding-top: 16px;
-}
-.music-option input {
-  accent-color: var(--primary);
-  width: 14px;
-  height: 14px;
 }
 
 .mobile-account {

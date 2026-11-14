@@ -2,23 +2,24 @@ import assert from 'node:assert/strict';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {test} from 'node:test';
+import {after, test} from 'node:test';
 import {executePipeline} from '../src/pipeline.mjs';
 
 const count = 32;
 const ids = Array.from({length: count}, (_, i) => 's' + (i + 1));
 
+const root = await mkdtemp(join(tmpdir(), 'knovid-plan-'));
+after(() => rm(root, {recursive: true, force: true}));
+process.env.KNOVID_DATA = root;
+process.env.KNOVID_MODE = 'live';
+process.env.LLM_BASE_URL = 'https://sec.llm.autos/v1';
+process.env.LLM_API_KEY = 'fake-model-token';
+process.env.LLM_PLAN_MODEL = 'glm-5.1-highspeed';
+process.env.LLM_FAST_MODEL = 'glm-5.1-highspeed';
+const {json, projectDir, read, revisionDir} = await import('../src/common.mjs');
+const {makePlan} = await import('../src/activities/agents.mjs');
+
 test('the long Director expands a shared outline and retries a short chapter', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'knovid-long-plan-'));
-  t.after(() => rm(root, {recursive: true, force: true}));
-  process.env.KNOVID_DATA = root;
-  process.env.KNOVID_MODE = 'live';
-  process.env.LLM_BASE_URL = 'https://sec.llm.autos/v1';
-  process.env.LLM_API_KEY = 'fake-model-token';
-  process.env.LLM_PLAN_MODEL = 'glm-5.1-highspeed';
-  process.env.LLM_FAST_MODEL = 'glm-5.1-highspeed';
-  const {json, projectDir, read, revisionDir} = await import('../src/common.mjs');
-  const {makePlan} = await import('../src/activities/agents.mjs');
   const job = {projectId: 'project', revisionId: 'revision'};
   await json(join(projectDir(job.projectId), 'input.json'), {input: {title: 'Long plan'}, options: {sceneCount: count, language: 'en'}});
   await json(join(revisionDir(job), 'evidence.json'), {evidence: [{id: 'e1', quote: 'A source excerpt.'}], figures: []});
@@ -65,6 +66,37 @@ test('the long Director expands a shared outline and retries a short chapter', a
     assert.equal(request.artDirection, plan.artDirection);
   }
   assert.match(chapterRequests.find(request => request.schemaCorrection).schemaCorrection, /exactly 8 entries in scenes/);
+});
+
+test('the short Director accepts oversized metadata and retries an ungrounded scene', async t => {
+  const job = {projectId: 'short-project', revisionId: 'revision'};
+  const subject = '行星的轨道';
+  await json(join(projectDir(job.projectId), 'input.json'), {
+    input: {title: subject}, options: {sceneCount: 3, language: 'zh', maxDurationSeconds: 30},
+  });
+  await json(join(revisionDir(job), 'evidence.json'), {evidence: [{id: 'e1', quote: '行星沿椭圆轨道绕太阳运行。'}], figures: []});
+  const artDirection = '浅紫色的背景与蓝色轨道标注。'.repeat(40);
+  const scene = {title: '轨道演示', goal: '区分轨道形状', visual: '在图中绘制椭圆和焦点。', cues: ['show-orbit']};
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (_url, request) => {
+    const body = JSON.parse(request.body);
+    const input = JSON.parse(body.messages[1].content);
+    requests.push(input);
+    const scenes = Array.from({length: 3}, (_, index) => ({
+      ...scene, evidenceIds: index === 0 && !input.schemaCorrection ? ['e404'] : ['e404', 'e1', 'e1'],
+    }));
+    return Response.json({choices: [{message: {content: JSON.stringify({artDirection, scenes})}}]});
+  });
+  assert.deepEqual(await makePlan(job, AbortSignal.timeout(5000)), ['s1', 's2', 's3']);
+  const plan = await read(join(revisionDir(job), 'plan.json'));
+  assert.equal(plan.title, subject);
+  assert.equal(plan.audience, '对主题感兴趣的普通观众');
+  assert.notEqual(plan.artDirection, artDirection);
+  assert.ok(plan.artDirection.length <= 450 && plan.artDirection.endsWith('。'));
+  assert.ok(plan.scenes.every(scene => scene.cues.length === 1 && scene.cues[0] === 'show_orbit'));
+  assert.ok(plan.scenes.every(scene => scene.evidenceIds.length === 1 && scene.evidenceIds[0] === 'e1'));
+  assert.equal(requests.length, 2);
+  assert.match(requests[1].schemaCorrection, /at least one existing evidence ID/);
 });
 
 test('large revisions cap scene and render queues and use long assembly', async () => {

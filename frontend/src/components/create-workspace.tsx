@@ -21,7 +21,9 @@ import {
   Layers3,
   Languages,
   Monitor,
+  Volume2,
 } from "lucide-react";
+import { Popover } from "radix-ui";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -40,6 +42,7 @@ import {
 } from "@/lib/types";
 import { api, apiCapabilities } from "@/lib/api";
 import { estimateProduction, MAX_CREATION_SCENES, MIN_CREATION_SCENES } from "@/lib/production-estimate";
+import { recommendSceneCount } from "@/lib/scene-recommendation";
 
 interface CreateWorkspaceProps {
   onCreate: (input: CreateProjectInput) => Promise<void>;
@@ -87,7 +90,7 @@ export function CreateWorkspace({
   const [stylePresetId, setStylePresetId] = useState("default");
   const [stylePresets, setStylePresets] = useState<StylePreset[]>([]);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("16:9");
-  const [sceneCount, setSceneCount] = useState("3");
+  const [manualSceneCount, setManualSceneCount] = useState<string | null>(null);
   const [modelProvider, setModelProvider] = useState<ModelProvider>("standard");
   const [size, setSize] = useState<"360p" | "720p" | "1080p">("1080p");
   const [language, setLanguage] = useState<"zh" | "en">("zh");
@@ -105,6 +108,8 @@ export function CreateWorkspace({
   const pricing = paidProviders?.find((provider) => provider.id === modelProvider);
   const selectedModel = pricing?.id ?? "standard";
   const selectedStyle = isMember ? stylePresetId : "default";
+  const recommendedScenes = recommendSceneCount({ inputType, topic, hasPaper: Boolean(file || paperUrl.trim()) });
+  const sceneCount = manualSceneCount ?? String(recommendedScenes ?? 3);
   const selectedSceneCount = isGuest ? 3 : Number(sceneCount);
   const validSceneCount = isGuest || (/^\d+$/.test(sceneCount)
     && selectedSceneCount >= MIN_CREATION_SCENES && selectedSceneCount <= MAX_CREATION_SCENES);
@@ -122,9 +127,9 @@ export function CreateWorkspace({
   );
 
   function stepSceneCount(step: -1 | 1) {
-    const current = sceneCount ? Math.round(Number(sceneCount)) : 3;
+    const current = sceneCount ? Math.round(Number(sceneCount)) : (recommendedScenes ?? 3);
     const next = Math.min(MAX_CREATION_SCENES, Math.max(MIN_CREATION_SCENES, current + step));
-    setSceneCount(String(next));
+    setManualSceneCount(String(next));
     setError("");
   }
 
@@ -475,7 +480,7 @@ export function CreateWorkspace({
                       disabled={pending}
                       onFocus={(event) => event.currentTarget.select()}
                       onChange={(event) => {
-                        setSceneCount(event.target.value);
+                        setManualSceneCount(event.target.value);
                         setError("");
                       }}
                     />
@@ -488,9 +493,20 @@ export function CreateWorkspace({
                       <Plus size={15} aria-hidden="true" />
                     </button>
                   </div>
-                  <span id="creation-scene-count-range" className="scene-count-range">
-                    {MIN_CREATION_SCENES}–{MAX_CREATION_SCENES}
+                  <span id="creation-scene-count-range" className="sr-only">
+                    可选 {MIN_CREATION_SCENES}–{MAX_CREATION_SCENES} 个镜头。
+                    {inputType === "paper" && recommendedScenes && "论文内容在提交后读取，当前按 8 个镜头估算。"}
                   </span>
+                  {manualSceneCount !== null ? (
+                    <button className="scene-count-auto" type="button" aria-label="恢复自动推荐" disabled={pending}
+                      onClick={() => { setManualSceneCount(null); setError(""); }}>
+                      用推荐{recommendedScenes ? ` ${recommendedScenes}` : ""}
+                    </button>
+                  ) : recommendedScenes !== undefined ? (
+                    <span className="scene-count-suggestion" title={inputType === "paper" ? "提交后读取论文内容，当前按 8 个镜头估算" : "按输入内容推荐，可手动调整"}>
+                      {inputType === "paper" ? "论文预估" : "自动推荐"}
+                    </span>
+                  ) : <span className="scene-count-range" aria-hidden="true">{MIN_CREATION_SCENES}–{MAX_CREATION_SCENES}</span>}
                 </div>
               )}
               <Select
@@ -566,6 +582,25 @@ export function CreateWorkspace({
               </SelectContent>
             </Select>
           )}
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <button className="setting-select creation-audio-trigger" type="button" disabled={pending}>
+                <Volume2 aria-hidden="true" /> 声音 <ChevronDown aria-hidden="true" />
+              </button>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content align="start" sideOffset={6} collisionPadding={12} className="creation-audio-options" aria-label="视频声音">
+                <label>
+                  <input type="checkbox" checked={music} disabled={pending} onChange={(event) => setMusic(event.target.checked)} />
+                  背景配乐
+                </label>
+                <label>
+                  <input type="checkbox" checked={narration} disabled={pending} onChange={(event) => setNarration(event.target.checked)} />
+                  语音旁白
+                </label>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
           {apiCapabilities.creationOptions && (
             <button
               className={`more-settings ${showMore ? "active" : ""}`}
@@ -607,26 +642,6 @@ export function CreateWorkspace({
             预留 {maximumCredits} Credit。结算按每个镜头 {pricing.creditsPerScene} Credit，另按成片每 {pricing.durationUnitSeconds} 秒 {pricing.creditsPerDurationUnit} Credit 向上取整。失败或取消会释放预留额度。
           </p>
         )}
-        <div className="creation-audio-options" role="group" aria-label="视频声音">
-          <label className="music-option">
-            <input
-              type="checkbox"
-              checked={music}
-              disabled={pending}
-              onChange={(event) => setMusic(event.target.checked)}
-            />
-            背景配乐
-          </label>
-          <label className="music-option">
-            <input
-              type="checkbox"
-              checked={narration}
-              disabled={pending}
-              onChange={(event) => setNarration(event.target.checked)}
-            />
-            语音旁白
-          </label>
-        </div>
         <AnimatePresence>
           {showMore && (
             <motion.div
