@@ -4,9 +4,15 @@
 
 KnoVid 知视是一款面向普通创作者的 AI 知识视频创作工具。我们希望让更多人用更低的成本、更顺手的流程，做出精美、易懂、让人愿意学下去的知识视频。
 
-[体验 knovid.art](https://knovid.art/) · [5 分钟项目介绍](docs/pitch-5min.md) · [项目介绍 PPT（可编辑）](docs/media/knovid-presentation.pptx) · [观看样片](#视频样片)
+[体验 knovid.art](https://knovid.art/) · [5 分钟介绍视频](#项目介绍视频) · [项目介绍 PPT（可编辑）](docs/media/knovid-presentation.pptx) · [观看样片](#视频样片)
 
 [![KnoVid 知视网站首页](docs/media/knovid-home.jpg)](https://knovid.art/)
+
+## 项目介绍视频
+
+[![KnoVid 知视项目介绍视频封面](docs/media/knovid-introduction-cover.jpg)](docs/media/knovid-introduction.mp4)
+
+[下载介绍视频（MP4，4 分 59 秒）](https://raw.githubusercontent.com/TochusC/knovid/main/docs/media/knovid-introduction.mp4) · [阅读项目介绍讲稿](docs/pitch-5min.md)
 
 ## 创作工作台
 
