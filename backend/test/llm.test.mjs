@@ -115,6 +115,33 @@ test('Writer uses GLM JSON mode and can recover one fenced object after two malf
   assert.match(JSON.parse(requests[2].messages[1].content).request, /omit Markdown/);
 });
 
+test('Agent JSON repair runs before model retry and still applies role validation', async t => {
+  const log = t.mock.method(console, 'info', () => {});
+  const content = ['{ /* internal note */ "answer": "wrong", }', '{ "answer": 42, }'];
+  const fetch = t.mock.method(globalThis, 'fetch', () =>
+    Response.json({choices: [{message: {content: content.shift()}}]}));
+  process.env.LLM_BASE_URL = 'https://sec.llm.autos/v1';
+  process.env.LLM_API_KEY = 'local-test-only';
+  t.after(() => {
+    delete process.env.LLM_BASE_URL;
+    delete process.env.LLM_API_KEY;
+  });
+  const result = await ask({
+    role: 'Director', tier: 'plan', instructions: 'Return JSON', input: {},
+    signal: AbortSignal.timeout(5000), traceContext: {projectId: 'project', revisionId: 'revision'},
+    validate: value => {
+      assert.equal(typeof value.answer, 'number');
+      return value.answer;
+    },
+  });
+  assert.equal(result.value, 42);
+  assert.equal(fetch.mock.callCount(), 2);
+  assert.equal(log.mock.callCount(), 1);
+  const repair = JSON.parse(log.mock.calls[0].arguments[0]);
+  assert.deepEqual(repair, {event: 'agent_json_repaired', role: 'Director', model: 'glm-5.1-highspeed',
+    attempt: 2, repairs: ['trailing_commas'], projectId: 'project', revisionId: 'revision'});
+});
+
 test('Writer falls back to streaming when a gateway rejects the JSON mode option', async t => {
   const requests = [];
   t.mock.method(globalThis, 'fetch', (_url, request) => {

@@ -31,9 +31,11 @@ const inputFile = job => join(projectDir(job.projectId), 'input.json');
 const pickEvidence = (items, ids) => items.filter(item => ids.includes(item.id));
 
 async function agent(job, spec, signal) {
-  const {modelProvider} = job;
+  const {modelProvider, projectId, revisionId} = job;
+  const sceneId = spec.logContext?.sceneId ?? spec.input.scene?.id;
+  const traceContext = {projectId, revisionId, sceneId};
   return cached(job, 'models', [version, modelConfig(modelProvider), spec.role, spec.tier, spec.input],
-    () => ask({...spec, modelProvider, signal}));
+    () => ask({...spec, modelProvider, traceContext, signal}));
 }
 
 export async function makeEvidence(job, signal) {

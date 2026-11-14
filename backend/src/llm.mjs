@@ -1,4 +1,5 @@
-import {Fault, fixture, record, sleep} from './common.mjs';
+import {Fault, fixture, sleep} from './common.mjs';
+import {parseModelJSON} from './model-json.mjs';
 
 const defaultGateway = 'https://sec.llm.autos/v1';
 const outputLimit = 'The model reached its output limit. Return a shorter JSON document.';
@@ -185,26 +186,13 @@ async function models(config, signal) {
   return {plan, fast, motion};
 }
 
-function parse(text, allowFencedReply) {
-  if (typeof text !== 'string') throw new SyntaxError('Expected text');
-  let cleaned = text.trim();
-  if (allowFencedReply) {
-    const blocks = [...cleaned.matchAll(/^\s*\x60{3}(?:json)?[ \t]*\r?\n([\s\S]*?)^\s*\x60{3}[ \t]*(?:\r?$)/gim)];
-    if (blocks.length === 1 && cleaned.match(/\x60{3}/g)?.length === 2) cleaned = blocks[0][1].trim();
-  }
-  cleaned = cleaned.replace(/^\x60{3}(?:json)?\s*|\s*\x60{3}$/gi, '');
-  const result = JSON.parse(cleaned);
-  if (!record(result)) throw new SyntaxError('Expected JSON object');
-  return result;
-}
-
 function logMotionRejection({projectId, revisionId, sceneId}, reason, model, attempt) {
   console.warn(JSON.stringify({
     event: 'motion_schema_rejected', reason, model: model.slice(0, 128), attempt, projectId, revisionId, sceneId,
   }));
 }
 
-export async function ask({role, instructions, input, tier = 'fast', validate, signal, logContext, modelProvider, structuredOutput = false, formatRetries = 0}) {
+export async function ask({role, instructions, input, tier = 'fast', validate, signal, logContext, traceContext, modelProvider, structuredOutput = false, formatRetries = 0}) {
   const gateway = modelConfig(modelProvider);
   const provider = gateway.modelProvider ? paidProviders[gateway.modelProvider] : undefined;
   const config = await models(gateway, signal);
@@ -249,7 +237,12 @@ export async function ask({role, instructions, input, tier = 'fast', validate, s
       const content = payload.choices?.[0]?.message?.content;
       const text = Array.isArray(content) ? content.map(part => part.text || '').join('') : content;
       try {
-        return {value: validate(parse(text, structuredOutput)), model};
+        const {value, repairs} = parseModelJSON(text);
+        const result = validate(value);
+        if (repairs.length) {
+          console.info(JSON.stringify({event: 'agent_json_repaired', role, model: model.slice(0, 128), attempt: index + 1, repairs, ...traceContext}));
+        }
+        return {value: result, model};
       } catch (error) {
         malformedJSON = error instanceof SyntaxError;
         const fixedMotionReason = motionValidationReasons.has(error.validationReason);

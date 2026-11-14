@@ -59,6 +59,8 @@ docker compose -p knovid-art --env-file /opt/knovid/shared/.env logs --since 30m
 
 Docker 将每个容器的日志以 JSON 文件保存在宿主机，单文件 10 MB，最多保留 3 个。可用 `docker inspect --format '{{.LogPath}}' knovid-art-model-1` 查看模型容器当前的日志路径。查分镜生成失败时，在模型日志中搜索 `motion_schema_rejected`，按作品、版本和镜头编号关联失败原因、模型和尝试次数。
 
+Agent 返回的 JSON 经规则修复且通过校验时，模型日志会记录 `agent_json_repaired` 和使用的规则。编写讲解重试后仍失败时可搜索 `writer_schema_rejected`。
+
 更新代码后重新执行本机部署命令。证书由 shared/certs 持久保存；当前证书有效至 **2027-02-11 23:59:59 UTC**。续期时替换本机证书后重新部署，原证书会备份到 shared/backups。
 
 应用回退时先确认数据库迁移向后兼容。以下命令适用于独占 80/443 的部署。使用宿主机 Nginx 时，Compose 命令需额外指定 `-f compose.yaml -f compose.gateway.yaml`，并将 `/etc/nginx/conf.d/knovid.art.conf` 的符号链接指向回退版本的 `deploy/host-nginx.conf`，再执行 `nginx -t && systemctl reload nginx`。
