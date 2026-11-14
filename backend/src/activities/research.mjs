@@ -2,45 +2,16 @@ import {randomUUID} from 'node:crypto';
 import {rename, rm} from 'node:fs/promises';
 import {join} from 'node:path';
 import {atomic, Fault, fixture, json, maybe, projectDir, read, revisionDir, run} from '../common.mjs';
-import {supportedPaperURL} from '../contracts.mjs';
+import {referenceUrlsInTopic} from '../contracts.mjs';
+import {acquireDocument, referencePassages, searchPassages, webPassages} from './web-research.mjs';
 
-const limit = 20 * 1024 * 1024;
 const options = {
   redirect: 'manual',
   headers: {'User-Agent': 'KnoVid/0.1 (https://knovid.art/)'},
 };
 const whitespace = text => text.replace(/\s+/gu, ' ').trim();
 
-async function downloadPDF(url, target, signal) {
-  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(70_000)]);
-  let response;
-  for (let redirect = 0; redirect < 4; redirect++) {
-    response = await fetch(url, {...options, signal: requestSignal}).catch(() => {
-      signal.throwIfAborted();
-      throw new Fault('PAPER_UNAVAILABLE', 'Could not download the PDF', {retryable: true});
-    });
-    if (![301, 302, 303, 307, 308].includes(response.status)) break;
-    const next = response.headers.get('location');
-    await response.body?.cancel();
-    if (!next) throw new Fault('PAPER_UNAVAILABLE', 'PDF host returned an invalid redirect');
-    url = supportedPaperURL(new URL(next, url).href);
-  }
-  if (!response.ok || !response.body) {
-    throw new Fault('PAPER_UNAVAILABLE', 'PDF host returned HTTP ' + response.status, {retryable: response.status >= 500});
-  }
-  const parts = [];
-  let size = 0;
-  for await (const bytes of response.body) {
-    size += bytes.length;
-    if (size > limit) throw new Fault('PDF_TOO_LARGE', 'PDF downloads are limited to 20 MiB');
-    parts.push(bytes);
-  }
-  const contents = Buffer.concat(parts);
-  if (!contents.subarray(0, 1024).includes(Buffer.from('%PDF-'))) {
-    throw new Fault('INVALID_PDF', 'The paper URL did not return a PDF');
-  }
-  await atomic(target, contents);
-}
+const webDocumentFile = job => join(projectDir(job.projectId), 'web-document.json');
 
 async function wiki(language, topic, signal) {
   const endpoint = new URL('https://' + language + '.wikipedia.org/w/api.php');
@@ -68,9 +39,10 @@ export async function acquire(job, signal) {
   const {input} = info;
   if (input.type === 'pdf' || input.type === 'paper-url') {
     const file = join(projectDir(job.projectId), 'paper.pdf');
-    if (!(await maybe(file))) {
+    if (!(await maybe(file)) && !(await maybe(webDocumentFile(job)))) {
       if (!input.url) throw new Fault('PDF_MISSING', 'The uploaded PDF cannot be found');
-      await downloadPDF(input.url, file, signal);
+      const document = await acquireDocument(input.url, file, signal);
+      if (document) await json(webDocumentFile(job), document);
     }
   }
   return input.type;
@@ -81,24 +53,42 @@ export async function extractText(job, signal) {
   const out = join(revisionDir(job), 'sources.json');
   if (await maybe(out)) return;
   let hits;
+  let title = input.title;
   let totalPages = null;
   let examinedPages = null;
   if (input.type === 'topic') {
-    hits = input.sources;
+    hits = input.sources ?? [];
+    const references = input.referenceUrls ?? referenceUrlsInTopic(input.title);
+    if (!fixture && references.length) {
+      const linked = await referencePassages(references, 7, signal);
+      hits = [...linked, ...hits];
+      if (linked.length && references.some(url => new URL(url).hostname === title)) title = linked[0].title;
+    }
     if (!hits.length && fixture) {
       hits = [{title: 'Kepler’s laws of planetary motion', excerpt: 'A planet orbits the Sun along an ellipse with the Sun at one focus. Its orbital speed increases as it approaches the Sun. The line from the Sun to a planet sweeps out equal areas in equal times.', url: 'https://science.nasa.gov/solar-system/orbits-and-keplers-laws/'}];
     }
     if (!hits.length) {
-      try {
-        hits = await wiki(settings.language, input.title, signal);
-        if (!hits.length && settings.language === 'zh') hits = await wiki('en', input.title, signal);
-      } catch {
+      const query = input.title.replace(/https?:\/\/[^\s<>"\u3000]+/gi, ' ').trim() || input.title;
+      const queries = [{language: settings.language, query}, ...(settings.language === 'zh' ? [{language: 'en', query}] : [])];
+      let searchError;
+      hits = await searchPassages(queries.slice(0, 1), signal).catch(error => {
         signal.throwIfAborted();
-        throw new Fault('SEARCH_UNAVAILABLE', 'Topic search was unavailable. Submit source excerpts with the topic.', {retryable: true});
+        searchError = error;
+        return [];
+      });
+      if (!hits.length) {
+        const wikiResults = await Promise.allSettled(queries.map(({language, query}) => wiki(language, query, signal)));
+        signal.throwIfAborted();
+        hits = wikiResults.flatMap(result => result.status === 'fulfilled' ? result.value : []);
+        if (searchError && wikiResults.every(result => result.status === 'rejected')) throw searchError;
       }
     }
   } else if (input.type === 'paper-text') {
     hits = pageCandidates(input.text, input.title, null);
+  } else if (input.type === 'paper-url' && await maybe(webDocumentFile(job))) {
+    const document = await read(webDocumentFile(job));
+    title = document.title;
+    hits = webPassages(document, 14);
   } else {
     const pdf = join(projectDir(job.projectId), 'paper.pdf');
     const info = await run('pdfinfo', [pdf], {signal});
@@ -111,8 +101,8 @@ export async function extractText(job, signal) {
     if (input.url) hits = hits.map(hit => ({...hit, url: input.url + '#page=' + hit.page}));
     if (!hits.length) throw new Fault('NO_PDF_TEXT', 'PDF has no extractable text. Upload an OCR-processed PDF or provide paper text.');
   }
-  if (!hits.length) throw new Fault('NO_SOURCES', 'No source passages found. Submit source excerpts with the topic.');
-  await json(out, {title: input.title, totalPages, examinedPages, passages: hits.map((hit, i) => ({id: 'p' + (i + 1), ...hit}))});
+  if (!hits.length) throw new Fault('NO_SOURCES', 'No readable source passages were found for this topic');
+  await json(out, {title, totalPages, examinedPages, passages: hits.map((hit, i) => ({id: 'p' + (i + 1), ...hit}))});
 }
 
 export async function extractFigures(job, signal) {
@@ -120,7 +110,7 @@ export async function extractFigures(job, signal) {
   const dir = revisionDir(job);
   const target = join(dir, 'figures.json');
   if (await maybe(target)) return;
-  if (!['pdf', 'paper-url'].includes(input.type)) {
+  if (!['pdf', 'paper-url'].includes(input.type) || await maybe(webDocumentFile(job))) {
     await json(target, []);
     return;
   }

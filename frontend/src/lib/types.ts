@@ -171,6 +171,7 @@ export interface Project extends ProjectSummary {
 export interface CreateProjectInput extends ProjectSettings {
   inputType: InputType;
   topic?: string;
+  referenceUrls?: string[];
   paperUrl?: string;
   paperFile?: File;
   title?: string;

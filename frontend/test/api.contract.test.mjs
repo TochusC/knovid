@@ -102,9 +102,25 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     assert.equal(silentSettings.options.visualMode, undefined);
   });
 
-  await t.test('paper links use the backend paper-url contract', async () => {
+  await t.test('public page and paper links use the backend paper-url contract', async () => {
     const paper = await api.createProject({...input, inputType: 'paper', topic: undefined, paperUrl: 'https://arxiv.org/abs/1706.03762'});
     assert.equal(paper.input.paperUrl, 'https://arxiv.org/pdf/1706.03762');
+    const page = await api.createProject({...input, inputType: 'paper', topic: undefined, paperUrl: 'https://bohack.top/#intro'});
+    assert.equal(page.input.paperUrl, 'https://bohack.top/');
+  });
+
+  await t.test('topic references preserve URLs and leave link targets out of the topic title', async () => {
+    const topic = '介绍Bohack黑客松，参考网址[https://bohack.top/](https://bohack.top/)';
+    const sourced = await api.createProject({...input, topic, referenceUrls: ['https://bohack.top/#intro', 'https://example.com/source']});
+    const stored = JSON.parse(await readFile(join(temporary, 'projects', sourced.id, 'input.json'))).input;
+    assert.equal(stored.title, '介绍Bohack黑客松');
+    assert.deepEqual(stored.referenceUrls, ['https://bohack.top/', 'https://example.com/source']);
+    const linkOnly = await api.createProject({...input, topic: 'https://example.com/path_(event)。'});
+    const linkSettings = JSON.parse(await readFile(join(temporary, 'projects', linkOnly.id, 'input.json'))).input;
+    assert.equal(linkSettings.title, 'example.com');
+    assert.deepEqual(linkSettings.referenceUrls, ['https://example.com/path_(event)']);
+    const labeled = await api.createProject({...input, topic: '[活动官网](<https://bohack.top/> "BoHack")'});
+    assert.equal(labeled.input.topic, '活动官网');
   });
 
   await t.test('paid providers, saved styles, visual mode and optional narration are serialized for each creation path', async () => {
@@ -172,7 +188,8 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
   await t.test('input validation and server failures use actionable Chinese messages', async () => {
     await assert.rejects(api.createProject({...input, visualMode: 'invalid-mode'}), error => error.code === 'INVALID_INPUT');
     await assert.rejects(api.createProject({...input, topic: '长'.repeat(301)}), error => error.code === 'INVALID_INPUT' && error.message.includes('300') && !error.message.includes('input.topic'));
-    await assert.rejects(api.createProject({...input, inputType: 'paper', paperUrl: 'https://example.com/paper.pdf'}), error => error.message.includes('上传 PDF') && !error.message.includes('hosts:'));
+    await assert.rejects(api.createProject({...input, inputType: 'paper', paperUrl: 'http://127.0.0.1/paper.pdf'}), error => error.code === 'INVALID_INPUT' && error.message.includes('公开'));
+    await assert.rejects(api.createProject({...input, topic: '看 http://127.0.0.1/reference'}), error => error.code === 'INVALID_INPUT' && error.message.includes('参考链接'));
     const english = await api.createProject({...input, topic: 'Kepler laws', language: 'en'});
     assert.equal(english.settings.language, 'en');
     globalThis.fetch = async () => Response.json({error: {code: 'UNEXPECTED', message: 'Internal server exception'}}, {status: 500});

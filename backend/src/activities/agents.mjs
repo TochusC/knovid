@@ -60,7 +60,7 @@ export async function makeEvidence(job, signal) {
     instructions: 'Find the passages that support the important concepts, findings and limitations. Return {"evidence":[{"passageId":"p1","quote":"exact substring, 16–360 characters"}]}. Preserve units, qualifiers, and experiment conditions. Never fabricate a quote. Figure captions are additional context.',
     validate,
   }, signal);
-  await json(target, {model: result.model, evidence: result.value, figures, totalPages: sources.totalPages, examinedPages: sources.examinedPages});
+  await json(target, {model: result.model, title: sources.title, evidence: result.value, figures, totalPages: sources.totalPages, examinedPages: sources.examinedPages});
 }
 
 const planStyle = paletteInstructions + ' When options.styleSelection is set, adapt its style and summary to the topic, including its narrative rhythm. Cite evidence for factual claims. ';
@@ -160,10 +160,11 @@ export async function makePlan(job, signal) {
   const file = planFile(job);
   if (await maybe(file)) return (await read(file)).scenes.map(scene => scene.id);
   const dir = revisionDir(job);
-  const [{input, options}, {evidence, figures}] = await Promise.all([read(inputFile(job)), read(join(dir, 'evidence.json'))]);
+  const [{input, options}, {title: sourceTitle, evidence, figures}] = await Promise.all([read(inputFile(job)), read(join(dir, 'evidence.json'))]);
+  const subject = sourceTitle || input.title;
   const validate = value => {
     const scenes = plannedScenes(value.scenes, evidence, options.sceneCount, {trial: Boolean(options.maxDurationSeconds)});
-    return {...planMetadata(value, input.title, options), scenes};
+    return {...planMetadata(value, subject, options), scenes};
   };
   const exampleScenes = options.language === 'en' ? ['The shape of an orbit', 'Speed along the orbit', 'Equal areas'] : ['轨道的形状', '轨道上的速度', '等时间与等面积'];
   const result = fixture ? {
@@ -174,10 +175,10 @@ export async function makePlan(job, signal) {
         cues: ['focus'], evidenceIds: ['e1'], heavy: i === 2,
       })),
     }),
-  } : options.sceneCount > longProductionThreshold ? await makeLongPlan(job, {subject: input.title, options, evidence, figures, defaultPalette}, signal)
+  } : options.sceneCount > longProductionThreshold ? await makeLongPlan(job, {subject, options, evidence, figures, defaultPalette}, signal)
   : await agent(job, {
     role: 'Director', tier: 'plan',
-    input: {subject: input.title, options, evidence, figures, defaultPalette, ...(options.maxDurationSeconds ? {trialDirection: 'Create three concise scenes under 10 seconds each. Use exactly one concept cue per scene, one small idea and one short sentence.'} : {})},
+    input: {subject, options, evidence, figures, defaultPalette, ...(options.maxDurationSeconds ? {trialDirection: 'Create three concise scenes under 10 seconds each. Use exactly one concept cue per scene, one small idea and one short sentence.'} : {})},
     instructions: 'Design an educational video with exactly options.sceneCount scenes in options.language. Start with a question or a clear visual observation and build toward an evidence-grounded explanation. ' +
       planStyle + 'Return {"title":"Video title","audience":"Intended viewers","artDirection":"Shared visual rules","scenes":[{"title":"Focused title","goal":"Learning goal","visual":"Directions for one illustration","cues":["focus"],"evidenceIds":["e1"],"heavy":false}]}. ' +
       'Limit title to 160 characters, audience to 260 and artDirection to 450. Use artDirection to set the shared palette, typography and composition. Keep cues short and meaningful, using only lowercase ASCII letters, digits and underscores, with a letter first. ' + sceneDirections,

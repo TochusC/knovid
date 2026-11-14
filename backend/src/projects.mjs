@@ -285,16 +285,19 @@ export function retryRevision(executor, projectId, revisionId) {
     const job = await checkedRevision(projectId, revisionId);
     const project = await metadata(projectId);
     if (project.latestRevisionId !== revisionId) throw new Fault('STALE_REVISION', 'Retry the latest revision', {status: 409});
-    const {status} = await read(statusFile(job));
+    const {status, error} = await read(statusFile(job));
     const {job: saved, ...details} = await read(requestFile(job));
     if (status === 'queued') return submit(executor, saved);
     if (status !== 'failed' && status !== 'cancelled') throw new Fault('REVISION_NOT_RETRYABLE', 'Only queued, failed or cancelled revisions can be retried', {status: 409});
-    const {options} = await read(settingsFile(projectId));
+    const {input, options} = await read(settingsFile(projectId));
     const modelProvider = saved.modelProvider ?? options.modelProvider;
     const billing = details.sourceRevisionId && !saved.billing ? undefined
       : await productionQuote(project.owner, modelProvider, options.sceneCount, saved.billing);
     const next = await stageJob(project, details, modelProvider, billing);
-    if (!details.sourceRevisionId) {
+    const refreshSources = status === 'failed' && input.type === 'topic' && !input.sources?.length &&
+      (['NO_SOURCES', 'SEARCH_UNAVAILABLE', 'WEB_SOURCE_UNAVAILABLE'].includes(error?.code) ||
+        (error?.code === 'LLM_SCHEMA' && error.message?.startsWith('Researcher returned invalid content:')));
+    if (!details.sourceRevisionId && !refreshSources) {
       const from = revisionDir(job);
       const to = revisionDir(next);
       for (const name of ['sources.json', 'figures.json', 'evidence.json', 'plan.json', 'voice.json']) {

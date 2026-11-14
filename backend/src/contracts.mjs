@@ -3,23 +3,26 @@ import {soundSettings} from './sound.mjs';
 import {guestSceneCount, maxSceneCount, minSceneCount} from './scene-limits.mjs';
 import {isBuiltinStyleId} from './builtin-styles.mjs';
 import {isModelId} from './model-catalog.mjs';
+import {publicWebURL} from './web-source.mjs';
 
 const customStyleId = new RegExp('^' + UUID + '$');
+const referenceLimit = 8;
+const topicInputLimit = 17_000;
 
 function invalid(message) {
   throw new Fault('INVALID_INPUT', message, {status: 400});
 }
 
-export function supportedPaperURL(value) {
-  let url;
+export function publicReferenceURL(value, label = 'input.url') {
   try {
-    url = new URL(value);
+    return publicWebURL(value);
   } catch {
-    invalid('input.url must be a valid HTTPS URL');
+    invalid(label + ' must be a public HTTP or HTTPS URL without credentials or a custom port');
   }
-  if (url.protocol !== 'https:' || url.username || url.password || url.port) {
-    invalid('Paper URLs must use HTTPS without credentials or a custom port');
-  }
+}
+
+export function supportedPaperURL(value) {
+  const url = publicReferenceURL(value);
   if (['arxiv.org', 'export.arxiv.org'].includes(url.hostname)) {
     const match = /^\/(?:abs|pdf)\/((?:[a-z-]+(?:\.[A-Z]{2})?\/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?)(?:\.pdf)?\/?$/u.exec(url.pathname);
     if (match) return 'https://arxiv.org/pdf/' + match[1];
@@ -31,7 +34,63 @@ export function supportedPaperURL(value) {
   if (url.hostname === 'aclanthology.org' && /^\/[\w.-]{2,100}(?:\/)?$/.test(url.pathname) && !url.pathname.includes('..')) {
     return 'https://aclanthology.org' + url.pathname.replace(/\/$/, '').replace(/\.pdf$/, '') + '.pdf';
   }
-  invalid('Supported paper link hosts: arxiv.org, openreview.net and aclanthology.org. Other papers can be uploaded as PDF.');
+  return url.href;
+}
+
+function inlineReferences(topic, strict = false) {
+  const references = [];
+  let title = '';
+  let last = 0;
+  const pattern = /(?:\[([^\[\]\r\n]{0,300})\]\(\s*<?|<)?(https?:\/\/[^\s<>"'`，。！？；、（）【】「」《》]+)/giu;
+  for (const match of topic.matchAll(pattern)) {
+    const [raw, label, candidate] = match;
+    const start = match.index;
+    let parentheses = 0;
+    let brackets = 0;
+    let length = 0;
+    for (const character of candidate) {
+      if (character === '(') parentheses++;
+      if (character === ')' && --parentheses < 0) break;
+      if (character === '[') brackets++;
+      if (character === ']' && --brackets < 0) break;
+      length += character.length;
+    }
+    const value = candidate.slice(0, length).replace(/[.,;:!?]+$/, '');
+    let url;
+    try { url = publicWebURL(value); } catch {
+      if (strict) invalid('input.referenceUrls must contain only public HTTP or HTTPS URLs');
+      continue;
+    }
+    references.push(url.href);
+    let end = start + raw.length - candidate.length + value.length;
+    const markdownEnd = label !== undefined && /^>?[ \t]*(?:["'][^\r\n]*?["'][ \t]*)?\)/u.exec(topic.slice(end));
+    if (markdownEnd) end += markdownEnd[0].length;
+    else if (raw.startsWith('<') && topic[end] === '>') end++;
+    title += topic.slice(last, start) + (markdownEnd && !/^https?:\/\//i.test(label) ? label : '');
+    last = end;
+  }
+  title += topic.slice(last);
+  return {references, title};
+}
+
+export function referenceUrlsInTopic(topic) {
+  return [...new Set(inlineReferences(topic).references)].slice(0, referenceLimit);
+}
+
+function topicSource(input) {
+  const topic = textField(input.topic, 'input.topic', topicInputLimit);
+  const {references, title} = inlineReferences(topic, true);
+  const supplied = input.referenceUrls ?? [];
+  if (!Array.isArray(supplied) || supplied.length > referenceLimit) {
+    invalid('input.referenceUrls must contain at most ' + referenceLimit + ' URLs');
+  }
+  const referenceUrls = [...new Set([...references, ...supplied.map(value => publicReferenceURL(value, 'input.referenceUrls').href)])];
+  if (referenceUrls.length > referenceLimit) invalid('input.referenceUrls must contain at most ' + referenceLimit + ' URLs');
+  const label = references.length ? title.trim()
+    .replace(/(?:[\s，。；;,:：]+|^)(?:参考(?:网址|链接|资料)?|reference(?:s| links?)?|sources?)\s*[:：]?\s*$/iu, '')
+    .replace(/[\s，。；;,:：]+$/, '') || new URL(referenceUrls[0]).hostname : title;
+  return {type: 'topic', title: textField(label, 'input.topic', 300), sources: sourceList(input.sources),
+    ...(referenceUrls.length && {referenceUrls})};
 }
 
 export function textField(value, label, max, min = 1) {
@@ -93,7 +152,7 @@ export function creation(body, pdfBuffer) {
     }
     source = {type: 'pdf', title: textField(input.title || 'PDF', 'input.title', 200)};
   } else if (input.type === 'topic') {
-    source = {type: 'topic', title: textField(input.topic, 'input.topic', 300), sources: sourceList(input.sources)};
+    source = topicSource(input);
   } else if (input.type === 'paper-text') {
     source = {
       type: 'paper-text',
@@ -103,7 +162,7 @@ export function creation(body, pdfBuffer) {
   } else if (input.type === 'paper-url') {
     source = {
       type: 'paper-url',
-      url: supportedPaperURL(textField(input.url, 'input.url', 500)),
+      url: supportedPaperURL(textField(input.url, 'input.url', 2048)),
       title: textField(input.title || 'Paper', 'input.title', 200),
     };
   } else {

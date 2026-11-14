@@ -96,8 +96,13 @@ const messages: Record<string, string> = {
   BODY_TOO_LARGE: "文件过大，请上传不超过 20 MB 的 PDF。",
   INVALID_PDF: "文件不是有效的 PDF，请检查后重新上传。",
   NO_PDF_TEXT: "这份 PDF 暂时无法提取文字，请上传经过文字识别的版本。",
+  NO_SOURCES: "没有找到可引用的资料。可以补充参考网址，或上传有正文的 PDF。",
   SEARCH_UNAVAILABLE: "资料检索服务暂时不可用，请稍后重试。",
-  PAPER_UNAVAILABLE: "暂时无法下载这篇论文，可以改为上传 PDF。",
+  WEB_SOURCE_UNAVAILABLE: "暂时无法读取这个网页。请检查链接，或换一个公开网页。",
+  WEB_SOURCE_UNREADABLE: "这个网页没有可读取的正文。可以换一个公开网页，或上传 PDF。",
+  WEB_SOURCE_TOO_LARGE: "这份网页资料超出读取大小限制。请换一个公开页面，或上传 20 MB 以内的 PDF。",
+  INVALID_SOURCE_URL: "请检查参考链接，填写可公开访问的 HTTP 或 HTTPS 网址。",
+  PAPER_UNAVAILABLE: "暂时无法读取这份资料。可以换一个公开链接，或上传 PDF。",
   LLM_HTTP_429: "模型服务正在限流，请稍后重新制作。",
   LLM_SCHEMA: "模型生成的内容格式不符合制作要求，可以点击「重新制作」再试。（LLM_SCHEMA）",
   QUEUE_UNAVAILABLE: "制作服务暂时不可用，恢复后可以重试。",
@@ -124,9 +129,8 @@ const messages: Record<string, string> = {
 };
 
 const inputErrorMessages = [
-  ["Supported paper link hosts", "目前支持 arXiv、OpenReview 和 ACL Anthology 链接，其他资料请上传 PDF。"],
-  ["Paper URLs", "请使用 HTTPS 论文链接，其他资料可以上传 PDF。"],
-  ["input.url", "请填写有效的 HTTPS 论文链接。"],
+  ["input.referenceUrls", "请检查参考链接格式，最多支持 8 个公开的 HTTP 或 HTTPS 网址。"],
+  ["input.url", "请填写可公开访问的 HTTP 或 HTTPS 链接。"],
   ["input.topic", "请输入 1 到 300 字的知识主题。"],
   ["input.title", "资料标题请控制在 200 字以内。"],
   ["sceneCount", "请输入 2 到 32 个镜头。"],
@@ -483,7 +487,9 @@ export const api = {
       return submittedProject(result);
     }
     const metadata = {
-      input: input.inputType === "topic" ? { type: "topic", topic: input.topic } : { type: "paper-url", url: input.paperUrl, title: input.title || "论文讲解" }, options,
+      input: input.inputType === "topic"
+        ? { type: "topic", topic: input.topic, referenceUrls: input.referenceUrls }
+        : { type: "paper-url", url: input.paperUrl, title: input.title || "资料讲解" }, options,
     };
     return submittedProject(await request<Submission>("/v1/projects", { method: "POST", body: JSON.stringify(metadata), acceptQueueFailure: true }));
   },

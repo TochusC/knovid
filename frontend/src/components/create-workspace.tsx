@@ -240,13 +240,7 @@ export function CreateWorkspace({
       try {
         const url = new URL(paperUrl);
         if (
-          url.protocol !== "https:" ||
-          ![
-            "arxiv.org",
-            "export.arxiv.org",
-            "openreview.net",
-            "aclanthology.org",
-          ].includes(url.hostname) ||
+          !["http:", "https:"].includes(url.protocol) ||
           url.username ||
           url.password ||
           url.port
@@ -254,8 +248,9 @@ export function CreateWorkspace({
           throw new Error();
       } catch {
         setError(
-          "请使用 arXiv、OpenReview 或 ACL 的 HTTPS 论文链接，其他资料可以上传 PDF。",
+          "请输入公开的 HTTP 或 HTTPS 链接，或上传 PDF。",
         );
+        textRef.current?.focus();
         return;
       }
     }
@@ -358,7 +353,7 @@ export function CreateWorkspace({
             setError("");
           }}
         >
-          <BookOpenText size={16} /> 一篇论文
+          <BookOpenText size={16} /> 网页或 PDF
         </button>
         <span className="draft-note">
           <span /> 灵感会自动保存
@@ -396,11 +391,11 @@ export function CreateWorkspace({
           <textarea
             ref={textRef}
             id="creation-topic"
-            aria-label={inputType === "topic" ? "想讲的知识主题" : "论文链接"}
+            aria-label={inputType === "topic" ? "想讲的知识主题" : "网页或 PDF 链接"}
             placeholder={
               inputType === "topic"
                 ? "比如，为什么行星越靠近太阳，跑得越快？"
-                : "粘贴论文链接，或把 PDF 拖到这里…"
+                : "粘贴网页或 PDF 链接，或把 PDF 拖到这里…"
             }
             value={inputType === "topic" ? topic : paperUrl}
             onChange={(event) => {
@@ -415,13 +410,13 @@ export function CreateWorkspace({
               }
             }}
             disabled={pending}
-            maxLength={inputType === "topic" ? 300 : 500}
+            maxLength={inputType === "topic" ? 17_000 : 2_048}
           />
         )}
         <div className="input-hint">
           {inputType === "topic"
-            ? "写下你想讲的内容，也可以加上观众、故事或希望呈现的方式。"
-            : "支持 arXiv、OpenReview、ACL 论文链接，或上传 20 MB 以内的 PDF。"}
+            ? "可以在主题中粘贴参考网址，制作时会优先读取网页正文。"
+            : "支持公开网页和 PDF 链接，也可上传 20 MB 以内的 PDF。"}
         </div>
       </div>
       <div className="creation-options">
@@ -526,7 +521,7 @@ export function CreateWorkspace({
                   </div>
                   <span id="creation-scene-count-range" className="sr-only">
                     可选 {MIN_CREATION_SCENES}–{MAX_CREATION_SCENES} 个镜头。
-                    {inputType === "paper" && recommendedScenes && "论文内容在提交后读取，当前按 8 个镜头估算。"}
+                    {inputType === "paper" && recommendedScenes && "资料在提交后读取，当前按 8 个镜头估算。"}
                   </span>
                   {manualSceneCount !== null ? (
                     <button className="scene-count-auto" type="button" aria-label="恢复自动推荐" disabled={pending}
@@ -534,8 +529,8 @@ export function CreateWorkspace({
                       用推荐{recommendedScenes ? ` ${recommendedScenes}` : ""}
                     </button>
                   ) : recommendedScenes !== undefined ? (
-                    <span className="scene-count-suggestion" title={inputType === "paper" ? "提交后读取论文内容，当前按 8 个镜头估算" : "按输入内容推荐，可手动调整"}>
-                      {inputType === "paper" ? "论文预估" : "自动推荐"}
+                    <span className="scene-count-suggestion" title={inputType === "paper" ? "提交后读取资料，当前按 8 个镜头估算" : "按输入内容推荐，可手动调整"}>
+                      {inputType === "paper" ? "资料预估" : "自动推荐"}
                     </span>
                   ) : <span className="scene-count-range" aria-hidden="true">{MIN_CREATION_SCENES}–{MAX_CREATION_SCENES}</span>}
                 </div>
