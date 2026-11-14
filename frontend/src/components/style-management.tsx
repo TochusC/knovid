@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEventHandler } from "react";
 import { ArrowRight, Loader2, Palette, Pencil, Play, Plus, RotateCw, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,11 +19,12 @@ type StyleDialog =
   | { kind: "form"; id?: string; style: string; summary: string }
   | { kind: "delete"; preset: StylePreset };
 
-export function StyleManagement({ access, accessError, onRetryAccess, onLogin }: {
+export function StyleManagement({ access, accessError, onRetryAccess, onLogin, onNavigate }: {
   access: VisitorAccess | null;
   accessError: string;
   onRetryAccess: () => void;
   onLogin: () => void;
+  onNavigate: MouseEventHandler<HTMLAnchorElement>;
 }) {
   return (
     <div className="styles-page">
@@ -32,7 +33,7 @@ export function StyleManagement({ access, accessError, onRetryAccess, onLogin }:
         <p>保存常用的配色、画面与动效规则，创建视频时直接选用。</p>
       </header>
 
-      <BuiltinStyleGallery />
+      <BuiltinStyleGallery onNavigate={onNavigate} />
 
       {access?.mode === "member" ? (
         <SavedStyles />
@@ -58,7 +59,7 @@ export function StyleManagement({ access, accessError, onRetryAccess, onLogin }:
   );
 }
 
-function BuiltinStyleGallery() {
+function BuiltinStyleGallery({ onNavigate }: { onNavigate: MouseEventHandler<HTMLAnchorElement> }) {
   const [playing, setPlaying] = useState<BuiltinStyleId | null>(null);
   const stopPlaying = useCallback(() => setPlaying(null), []);
 
@@ -91,7 +92,7 @@ function BuiltinStyleGallery() {
                 </div>
                 <p>{style.summary}</p>
                 <Button asChild variant="outline" size="sm">
-                  <a href={`#/workspace?style=${style.id}`} aria-label={`使用${style.name}风格`}>
+                  <a href={`/workspace?style=${style.id}`} onClick={onNavigate} aria-label={`使用${style.name}风格`}>
                     使用此风格 <ArrowRight />
                   </a>
                 </Button>

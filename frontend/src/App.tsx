@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowDownToLine,
@@ -36,6 +36,7 @@ import { KnowledgeArtwork } from "@/components/knowledge-artwork";
 import { ProjectWorkspace } from "@/components/project-workspace";
 import { StyleManagement } from "@/components/style-management";
 import { api, ApiError } from "@/lib/api";
+import { legacyRoute, readRoute } from "@/lib/app-route";
 import { AccountControl } from "@/components/account-control";
 import { ThemeControl } from "@/components/theme-control";
 import { LandingPage } from "@/components/landing-page";
@@ -49,28 +50,11 @@ import {
 } from "@/lib/types";
 import "./app.css";
 
-type Route = {
-  page: "landing" | "home" | "projects" | "project" | "styles" | "rixin";
-  projectId?: string;
-  stylePresetId?: string;
-};
 type Connection = "checking" | "online" | "offline" | "unauthorized";
 
-function readRoute(): Route {
-  const path = window.location.hash.replace(/^#\/?/, "");
-  if (path === "workspace" || path.startsWith("workspace?")) {
-    return { page: "home", stylePresetId: new URLSearchParams(path.slice("workspace".length)).get("style") ?? undefined };
-  }
-  if (path === "rixin") return { page: "rixin" };
-  if (path === "styles") return { page: "styles" };
-  if (path.startsWith("projects/")) {
-    try {
-      return { page: "project", projectId: decodeURIComponent(path.slice(9)) };
-    } catch {
-      return { page: "landing" };
-    }
-  }
-  return { page: path === "projects" ? "projects" : "landing" };
+function readCurrentRoute() {
+  const location = new URL(window.location.href);
+  return readRoute(legacyRoute(location) ?? location);
 }
 
 function durationLabel(seconds: number) {
@@ -136,7 +120,7 @@ const ideas = [
 ];
 
 export default function App() {
-  const [route, setRoute] = useState(readRoute);
+  const [route, setRoute] = useState(readCurrentRoute);
   const [connection, setConnection] = useState<Connection>("checking");
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -163,15 +147,34 @@ export default function App() {
     undefined,
   );
 
-  useEffect(() => {
-    const handleHash = () => {
-      setRoute(readRoute());
-      setMobileNav(false);
-      window.scrollTo({ top: 0 });
-    };
-    window.addEventListener("hashchange", handleHash);
-    return () => window.removeEventListener("hashchange", handleHash);
+  const syncRoute = useCallback(() => {
+    setRoute(readCurrentRoute());
+    setMobileNav(false);
+    if (!window.location.hash) window.scrollTo({ top: 0 });
   }, []);
+
+  useEffect(() => {
+    const migrateLegacyRoute = () => {
+      const target = legacyRoute(new URL(window.location.href));
+      if (!target) return false;
+      window.history.replaceState(window.history.state, "", target);
+      return true;
+    };
+    const onPopState = () => {
+      migrateLegacyRoute();
+      syncRoute();
+    };
+    const onHashChange = () => {
+      if (migrateLegacyRoute()) syncRoute();
+    };
+    onHashChange();
+    window.addEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onHashChange);
+    };
+  }, [syncRoute]);
 
   useEffect(() => {
     if (route.page === "landing") return;
@@ -292,19 +295,30 @@ export default function App() {
     [],
   );
 
-  function navigate(path: string) {
-    window.location.hash = path;
-    setMobileNav(false);
+  const navigate = useCallback((path: string) => {
+    const target = new URL(path, window.location.origin);
+    if (target.href !== window.location.href) {
+      window.history.pushState(null, "", target);
+      syncRoute();
+    } else {
+      setMobileNav(false);
+    }
+  }, [syncRoute]);
+
+  function followRoute(event: MouseEvent<HTMLAnchorElement>) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigate(event.currentTarget.href);
   }
 
-  function newProject(topic = "") {
+  const newProject = useCallback((topic = "") => {
     navigate("/workspace");
     setSuggestion({ topic, nonce: Date.now() });
     window.setTimeout(
       () => document.getElementById("creation-topic")?.focus(),
       100,
     );
-  }
+  }, [navigate]);
 
   function openDemo(idea: (typeof ideas)[number], trigger = document.activeElement) {
     demoTrigger.current = trigger instanceof HTMLElement ? trigger : null;
@@ -374,7 +388,7 @@ export default function App() {
 
   const sidebar = (
     <>
-      <a className="brand" href="#/" aria-label="KnoVid 知视首页">
+      <a className="brand" href="/" onClick={followRoute} aria-label="KnoVid 知视首页">
         <img
           className="brand-icon"
           src="/favicon.svg"
@@ -392,7 +406,8 @@ export default function App() {
       </Button>
       <nav className="main-nav" aria-label="主要导航">
         <a
-          href="#/workspace"
+          href="/workspace"
+          onClick={followRoute}
           className={route.page === "home" ? "active" : ""}
           aria-current={route.page === "home" ? "page" : undefined}
         >
@@ -400,7 +415,8 @@ export default function App() {
           创作工作台
         </a>
         <a
-          href="#/projects"
+          href="/projects"
+          onClick={followRoute}
           className={
             route.page === "projects" || route.page === "project"
               ? "active"
@@ -412,7 +428,8 @@ export default function App() {
           我的作品{projects.length > 0 && <span>{projects.length}</span>}
         </a>
         <a
-          href="#/styles"
+          href="/styles"
+          onClick={followRoute}
           className={route.page === "styles" ? "active" : ""}
           aria-current={route.page === "styles" ? "page" : undefined}
         >
@@ -420,7 +437,8 @@ export default function App() {
           风格管理
         </a>
         <a
-          href="#/rixin"
+          href="/rixin"
+          onClick={followRoute}
           className={route.page === "rixin" ? "active" : ""}
           aria-current={route.page === "rixin" ? "page" : undefined}
         >
@@ -452,17 +470,12 @@ export default function App() {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        window.location.hash = "/workspace";
-        setSuggestion({ topic: "", nonce: Date.now() });
-        setTimeout(
-          () => document.getElementById("creation-topic")?.focus(),
-          100,
-        );
+        newProject();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [newProject]);
 
   return (
     <div
@@ -593,6 +606,7 @@ export default function App() {
               accessError={accessError}
               onRetryAccess={() => void refreshAccess()}
               onLogin={() => setLoginRequest((value) => value + 1)}
+              onNavigate={followRoute}
             />
           )}
           {route.page === "home" && (
