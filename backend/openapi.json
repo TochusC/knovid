@@ -94,6 +94,13 @@
       "post": {"operationId": "retryRevision", "responses": {"202": {"$ref": "#/components/responses/Submitted"},
         "409": {"$ref": "#/components/responses/Error"}, "503": {"$ref": "#/components/responses/EnqueueFailed"}}}
     },
+    "/v1/projects/{projectId}/revisions/{revisionId}/trace": {
+      "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Revision"}],
+      "get": {"operationId": "getWorkflowTrace", "description": "读取当前用户指定版本的 Agent 与程序任务执行轨迹。",
+        "responses": {"200": {"description": "Workflow activity trace", "content": {
+          "application/json": {"schema": {"$ref": "#/components/schemas/WorkflowTrace"}}
+        }}, "404": {"$ref": "#/components/responses/Error"}}}
+    },
     "/v1/projects/{projectId}/scenes/{sceneId}": {
       "parameters": [{"$ref": "#/components/parameters/Project"}, {"$ref": "#/components/parameters/Scene"}],
       "patch": {"operationId": "editScene", "description": "修改旁白、场景参数或两者，并创建一个新版本。",
@@ -142,6 +149,21 @@
         "content": {"*/*": {"schema": {}}}}
     },
     "schemas": {
+      "WorkflowTrace": {"type": "object", "required": ["source", "observedAt", "activities"], "properties": {
+        "source": {"enum": ["temporal", "unavailable"]}, "observedAt": {"type": "string", "format": "date-time"},
+        "truncated": {"type": "boolean"}, "activities": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowActivity"}}
+      }},
+      "WorkflowActivity": {"type": "object", "required": ["id", "name", "kind", "status", "scheduledAt"], "properties": {
+        "id": {"type": "string"}, "name": {"type": "string"}, "kind": {"enum": ["agent", "worker"]},
+        "sceneId": {"type": "string", "pattern": "^s(?:[1-9]|[12][0-9]|3[0-2])$"},
+        "status": {"enum": ["queued", "running", "retrying", "succeeded", "failed", "cancelled"]},
+        "scheduledAt": {"type": "string", "format": "date-time"}, "startedAt": {"type": "string", "format": "date-time"},
+        "finishedAt": {"type": "string", "format": "date-time"}, "retryAt": {"type": "string", "format": "date-time"},
+        "attempt": {"type": "integer", "minimum": 1}, "repair": {"const": true}, "failureCode": {"type": "string"},
+        "chunk": {"type": "object", "required": ["fromFrame", "toFrame"], "properties": {
+          "fromFrame": {"type": "integer", "minimum": 0}, "toFrame": {"type": "integer", "minimum": 0}
+        }}
+      }},
       "VisitorAccess": {"type": "object", "required": ["mode", "limits", "usage", "remainingGenerations", "canGenerate"], "properties": {
         "mode": {"enum": ["guest", "member"]}, "displayName": {"type": "string"},
         "limits": {"type": "object", "required": ["maxDurationSeconds", "maxGenerations", "maxRetriesPerProject"], "properties": {

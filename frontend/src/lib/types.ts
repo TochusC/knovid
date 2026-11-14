@@ -35,6 +35,29 @@ export type ProjectStatus =
 
 export type SceneStatus = "pending" | "generating" | "rendering" | "ready" | "failed";
 
+export interface WorkflowActivity {
+  id: string;
+  name: string;
+  kind: "agent" | "worker";
+  sceneId?: string;
+  status: "queued" | "running" | "retrying" | "succeeded" | "failed" | "cancelled";
+  scheduledAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  retryAt?: string;
+  attempt?: number;
+  repair?: true;
+  failureCode?: string;
+  chunk?: { fromFrame: number; toFrame: number };
+}
+
+export interface WorkflowTrace {
+  source: "temporal" | "unavailable";
+  observedAt: string;
+  activities: WorkflowActivity[];
+  truncated?: boolean;
+}
+
 export interface ProjectSettings {
   audience: string;
   durationSeconds: number;

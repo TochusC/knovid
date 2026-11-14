@@ -3,6 +3,7 @@ import {groups, queues} from './activities/index.mjs';
 import {Fault, revisionDir, sleep} from './common.mjs';
 import {computeConcurrency} from './limits.mjs';
 import {executePipeline, failureDetails} from './pipeline.mjs';
+import {temporalTraceReader} from './workflow-trace.mjs';
 
 function limiter(max) {
   const waiting = [];
@@ -82,9 +83,12 @@ const temporalId = ({projectId, revisionId}) => 'knovid/' + projectId + '/' + re
 async function temporalExecutor() {
   const {Client, Connection, WorkflowExecutionAlreadyStartedError, WorkflowNotFoundError} = await import('@temporalio/client');
   const connection = Connection.lazy({address: process.env.TEMPORAL_ADDRESS || 'temporal:7233', connectTimeout: '5s'});
-  const client = new Client({connection, namespace: process.env.TEMPORAL_NAMESPACE || 'default'});
+  const namespace = process.env.TEMPORAL_NAMESPACE || 'default';
+  const client = new Client({connection, namespace});
+  const trace = temporalTraceReader(client, connection, namespace);
   return {
     isActive: null,
+    trace: job => trace(temporalId(job)),
     async start(job) {
       try {
         await connection.withDeadline(Date.now() + 5_000, () => client.workflow.start('produceVideo', {

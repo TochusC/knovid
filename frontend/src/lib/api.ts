@@ -1,4 +1,4 @@
-import type { CreateProjectInput, ExportResult, HealthStatus, ModelProvider, Project, ProjectSummary, Scene, SceneParameterSchema, SceneUpdate, StylePreset, VisitorAccess } from "./types";
+import type { CreateProjectInput, ExportResult, HealthStatus, ModelProvider, Project, ProjectSummary, Scene, SceneParameterSchema, SceneUpdate, StylePreset, VisitorAccess, WorkflowTrace } from "./types";
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 export const API_BASE_URL = (configuredBaseUrl || "/api").replace(/\/$/, "");
@@ -389,6 +389,16 @@ export const api = {
   },
 
   getProject,
+
+  async getWorkflowTrace(projectId: string, revisionId: string, signal?: AbortSignal): Promise<WorkflowTrace> {
+    const trace = await request<WorkflowTrace>(`${projectPath(projectId)}/revisions/${encodeURIComponent(revisionId)}/trace`, {
+      signal, cache: "no-store", timeoutMs: 10_000,
+    });
+    if (!trace || !["temporal", "unavailable"].includes(trace.source) || !Array.isArray(trace.activities) || !Number.isFinite(Date.parse(trace.observedAt))) {
+      throw new ApiError("暂时无法读取制作轨迹。", 0, "INVALID_RESPONSE");
+    }
+    return trace;
+  },
 
   async listStylePresets(signal?: AbortSignal): Promise<StylePreset[]> {
     const result = await request<{ presets: StylePreset[] }>("/v1/rixin/styles", { signal, cache: "no-store" });

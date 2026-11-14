@@ -17,6 +17,12 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
       submitted.push(job);
       if (queueUnavailable) throw Object.assign(new Error('Test queue unavailable'), {code: 'QUEUE_UNAVAILABLE'});
     },
+    async trace() {
+      const scheduledAt = new Date().toISOString();
+      return {source: 'temporal', observedAt: scheduledAt, activities: [
+        {id: '8', name: 'makeMotion', kind: 'agent', sceneId: 's2', status: 'queued', scheduledAt},
+      ]};
+    },
     async close() {},
   };
   const authenticate = async () => ({id: 'frontend-contract-member', displayName: 'Contract member'});
@@ -64,6 +70,15 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
     const list = await api.listProjects();
     assert.equal(list[0].id, project.id);
     assert.equal(list[0].title, input.topic);
+  });
+
+  await t.test('workflow trace uses the current revision and returns its activity state', async () => {
+    const trace = await api.getWorkflowTrace(project.id, project.revisionId);
+    assert.equal(trace.source, 'temporal');
+    assert.equal(trace.activities[0].name, 'makeMotion');
+    assert.equal(trace.activities[0].sceneId, 's2');
+    assert.equal(trace.activities[0].status, 'queued');
+    await assert.rejects(api.getWorkflowTrace(project.id, '00000000-0000-4000-8000-000000000000'), error => error.status === 404);
   });
 
   await t.test('raw PDF upload preserves filename and supported settings', async () => {

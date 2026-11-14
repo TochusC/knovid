@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductionTime } from "./production-time";
+import { WorkflowTrace } from "./workflow-trace";
 import { api, apiCapabilities, ApiError } from "@/lib/api";
 import {
   modelProviderLabels,
@@ -846,6 +847,16 @@ export function ProjectWorkspace({
                 ))}
               </div>
             </div>
+          )}
+
+          {project.revisionId && (
+            <WorkflowTrace
+              key={`${project.id}:${project.revisionId}`}
+              projectId={project.id}
+              revisionId={project.revisionId}
+              scenes={project.scenes}
+              active={isProducing || project.status === "review"}
+            />
           )}
 
           <div className="workspace-scenes-header">

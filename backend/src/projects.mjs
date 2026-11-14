@@ -7,6 +7,7 @@ import {integerEnv} from './limits.mjs';
 import {soundSettings} from './sound.mjs';
 import {narrationBudget} from './guest-limits.mjs';
 import {productionQuote} from './production-credit.mjs';
+import {unavailableTrace} from './workflow-trace.mjs';
 
 const uuid = new RegExp('^' + UUID + '$');
 const metaFile = id => join(projectDir(id), 'project.json');
@@ -35,6 +36,11 @@ async function checkedRevision(projectId, revisionId) {
   const project = await metadata(projectId);
   if (!uuid.test(revisionId) || !project.revisionIds.includes(revisionId)) throw gone();
   return {projectId, revisionId};
+}
+
+export async function revisionTrace(executor, projectId, revisionId) {
+  const job = await checkedRevision(projectId, revisionId);
+  return executor.trace ? executor.trace(job) : unavailableTrace();
 }
 
 const origin = ({projectId, revisionId}) => '/v1/projects/' + projectId + '/revisions/' + revisionId;

@@ -8,7 +8,7 @@ import {pathToFileURL} from 'node:url';
 import {Fault, read, UUID} from './common.mjs';
 import {creation} from './contracts.mjs';
 import {executor as makeExecutor} from './executor.mjs';
-import {cancelRevision, createProject, editProject, editScene, getProject, listProjects, metadata, resumeProjects, retryRevision, revision, artifact} from './projects.mjs';
+import {cancelRevision, createProject, editProject, editScene, getProject, listProjects, metadata, resumeProjects, retryRevision, revision, revisionTrace, artifact} from './projects.mjs';
 import {integerEnv} from './limits.mjs';
 import {accessSnapshot, limitPayload, limitedOperation, projectAccess, requireOwner, resolveIdentity} from './guest-access.mjs';
 import {publicSound} from './sound.mjs';
@@ -25,7 +25,7 @@ const editRoute = new RegExp('^' + base + '/(' + UUID + ')/scenes/(' + sceneIdPa
 const rixinRoute = new RegExp('^/v1/rixin/(' + UUID + ')/(' + UUID + ')$');
 const styleRoute = new RegExp('^/v1/rixin/styles(?:/(' + UUID + '))?$');
 const revisionRoute = new RegExp('^' + base + '/(' + UUID + ')/revisions/(' + UUID +
-  ')(?:(/(?:cancel|retry))|/(?:scenes/(' + sceneIdPattern + ')/)?artifacts/([a-z0-9.\\-]{1,50}))?$');
+  ')(?:(/(?:cancel|retry|trace))|/(?:scenes/(' + sceneIdPattern + ')/)?artifacts/([a-z0-9.\\-]{1,50}))?$');
 const types = {
   '.json': 'application/json; charset=utf-8', '.pdf': 'application/pdf',
   '.png': 'image/png', '.mp4': 'video/mp4', '.wav': 'audio/wav',
@@ -268,6 +268,7 @@ export async function createApp({executor: injectedExecutor, authenticate} = {})
           return accepted(res, await limitedOperation(identity, 'retry', id, () => retryRevision(executor, id, version)));
         }
         methodAllowed(method, 'GET');
+        if (action === '/trace') return send(res, 200, await revisionTrace(executor, id, version));
         return send(res, 200, await revision(id, version));
       }
       throw new Fault('NOT_FOUND', 'Route does not exist', {status: 404});

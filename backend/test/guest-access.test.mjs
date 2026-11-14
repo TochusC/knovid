@@ -70,9 +70,16 @@ try {
       assert.equal((await second.request('/v1/projects/' + jobs[0].projectId, cookie)).status, 200);
       const outsider = await guest(second);
       assert.deepEqual((await (await second.request('/v1/projects', outsider)).json()).projects, []);
-      for (const path of ['/v1/projects/' + jobs[0].projectId, jobs[0].href, jobs[0].href + '/artifacts/video.mp4']) {
+      for (const path of ['/v1/projects/' + jobs[0].projectId, jobs[0].href, jobs[0].href + '/artifacts/video.mp4', jobs[0].href + '/trace']) {
         assert.equal((await second.request(path, outsider)).status, 404);
       }
+      const trace = await second.request(jobs[0].href + '/trace', cookie);
+      assert.equal(trace.status, 200);
+      assert.equal(trace.headers.get('cache-control'), 'private, no-store');
+      const {source, activities, observedAt} = await trace.json();
+      assert.equal(source, 'unavailable');
+      assert.deepEqual(activities, []);
+      assert.ok(Number.isFinite(Date.parse(observedAt)));
       assert.equal((await second.request(jobs[0].href + '/retry', outsider, {method: 'POST'})).status, 404);
       await first.close();
       const restarted = await start();
