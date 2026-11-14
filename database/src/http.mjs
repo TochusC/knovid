@@ -121,7 +121,7 @@ function digest(value) {
 export function createProductionCreditHandler({ credits, access, token }) {
   const expected = token && createHash('sha256').update('Bearer ' + token).digest();
   const actions = new Set(['reserve', 'capture', 'release']);
-  const providers = new Set(['deepseek', 'openrouter']);
+  const providers = new Set(['glm-5.3', 'deepseek', 'deepseek-pro', 'openrouter', 'openrouter-astra', 'openrouter-sol']);
 
   return async function handleProductionCredit(req, res) {
     if (!expected || req.url !== '/internal/production-credit') return false;

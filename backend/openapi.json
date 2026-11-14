@@ -45,7 +45,7 @@
           {"in": "query", "name": "size", "schema": {"$ref": "#/components/schemas/Size"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "music", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "narration", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
-          {"in": "query", "name": "modelProvider", "schema": {"$ref": "#/components/schemas/ModelProvider"}, "description": "仅用于 PDF 请求"},
+          {"in": "query", "name": "modelProvider", "schema": {"$ref": "#/components/schemas/ModelProvider"}, "description": "PDF 上传时选择制作模型"},
           {"in": "query", "name": "stylePresetId", "schema": {"$ref": "#/components/schemas/StylePresetId"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "musicTrack", "schema": {"$ref": "#/components/schemas/MusicTrack"}, "description": "仅用于 PDF 请求"},
           {"in": "query", "name": "effects", "schema": {"type": "boolean", "default": true}, "description": "仅用于 PDF 请求"},
@@ -171,10 +171,13 @@
           "maxRetriesPerProject": {"type": ["integer", "null"]}
         }}, "usage": {"type": "object", "required": ["generations"], "properties": {"generations": {"type": "integer", "minimum": 0}}},
         "remainingGenerations": {"type": ["integer", "null"]}, "canGenerate": {"type": "boolean"},
-        "modelProviders": {"type": "array", "items": {"type": "object", "properties": {
+        "modelProviders": {"type": "array", "items": {"type": "object", "required": ["id", "provider", "label", "creditMultiplier", "creditsPerScene", "creditsPerDurationUnit", "durationUnitSeconds", "maxSceneSeconds"], "properties": {
           "id": {"$ref": "#/components/schemas/ModelProvider"},
+          "provider": {"enum": ["glm", "deepseek", "openrouter"]}, "label": {"type": "string"},
+          "creditMultiplier": {"type": "integer", "minimum": 0},
           "creditsPerScene": {"type": "integer", "minimum": 0}, "creditsPerDurationUnit": {"type": "integer", "minimum": 0},
-          "durationUnitSeconds": {"type": "integer", "minimum": 1}, "maxSceneSeconds": {"type": "integer", "minimum": 1}
+          "durationUnitSeconds": {"type": "integer", "minimum": 1}, "maxSceneSeconds": {"type": "integer", "minimum": 1},
+          "available": {"type": "boolean", "default": true}, "unavailableReason": {"enum": ["region"]}
         }}}
       }},
       "ProjectAccess": {"type": "object", "properties": {
@@ -184,7 +187,7 @@
       }},
       "Language": {"type": "string", "enum": ["zh", "en"], "default": "zh"},
       "SceneCount": {"type": "integer", "minimum": 2, "maximum": 32, "default": 3, "description": "登录后可选择 2–32 个镜头。访客试用固定制作 3 个镜头。"},
-      "ModelProvider": {"type": "string", "enum": ["standard", "deepseek", "openrouter"], "default": "standard"},
+      "ModelProvider": {"type": "string", "enum": ["standard", "glm-5.3", "deepseek", "deepseek-pro", "openrouter-astra", "openrouter-sol", "openrouter"], "default": "standard", "description": "制作模型 ID。openrouter 仅用于兼容已有作品和客户端。"},
       "StylePresetId": {"type": "string", "anyOf": [
         {"enum": ["default", "paper-diagram", "blueprint", "warm-story", "bold-geometry", "auto"]},
         {"pattern": "^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$"}

@@ -28,7 +28,10 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -54,7 +57,11 @@ interface CreateWorkspaceProps {
 }
 
 const draftKey = "knovid.creation-draft.v1";
-const premiumModelIds = ["deepseek", "openrouter"] as const;
+const modelGroups = [
+  { name: "GLM", models: ["standard", "glm-5.3"] },
+  { name: "DeepSeek", models: ["deepseek", "deepseek-pro"] },
+  { name: "OpenRouter", models: ["openrouter-astra", "openrouter-sol"] },
+] as const satisfies ReadonlyArray<{ name: string; models: readonly ModelProvider[] }>;
 const audiences = [
   "对这个主题感兴趣的普通人",
   "中小学生",
@@ -111,9 +118,11 @@ export function CreateWorkspace({
   const sceneCountRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const paidProviders = isMember ? access.modelProviders : undefined;
-  const pricing = paidProviders?.find((provider) => provider.id === modelProvider);
+  const selectedPricing = modelProvider === "standard" ? undefined : paidProviders?.find((provider) => provider.id === modelProvider);
+  const pricing = selectedPricing?.available === false ? undefined : selectedPricing;
   const modelUnavailable = modelProvider !== "standard" && !pricing;
   const unavailableModelHint = !access ? "正在核对可用模型" : isGuest ? "登录后可用" : "暂不可用";
+  const selectedModelHint = selectedPricing?.unavailableReason === "region" ? "当前地区不可用" : unavailableModelHint;
   const selectedStyle = isMember || isBuiltinStyleId(stylePresetId) ? stylePresetId : "default";
   const recommendedScenes = recommendSceneCount({ inputType, topic, hasPaper: Boolean(file || paperUrl.trim()) });
   const sceneCount = manualSceneCount ?? String(recommendedScenes ?? 3);
@@ -207,7 +216,7 @@ export function CreateWorkspace({
       return;
     }
     if (modelUnavailable) {
-      setError(`${modelProviderLabels[modelProvider]} ${unavailableModelHint}，请确认账号状态或切换模型。`);
+      setError(`${modelProviderLabels[modelProvider]} ${selectedModelHint}，请确认账号状态或切换模型。`);
       return;
     }
     if (!validSceneCount) {
@@ -583,21 +592,31 @@ export function CreateWorkspace({
             <SelectTrigger
               aria-label="制作模型"
               aria-describedby={modelUnavailable ? "creation-model-unavailable" : pricing && validSceneCount ? "creation-model-pricing" : undefined}
-              className="setting-select"
+              className="setting-select creation-model-trigger"
             >
               <BrainCircuit size={15} />
-              <SelectValue>{modelProvider === "standard" ? "GLM（默认）" : modelProviderLabels[modelProvider]}</SelectValue>
+              <SelectValue>{modelProviderLabels[modelProvider]}</SelectValue>
             </SelectTrigger>
-            <SelectContent position="popper" align="start">
-              <SelectItem value="standard">GLM-5.1 HighSpeed（默认）</SelectItem>
-              {premiumModelIds.map((id) => {
-                const available = paidProviders?.some((provider) => provider.id === id);
-                return (
-                  <SelectItem key={id} value={id} disabled={!available}>
-                    {modelProviderLabels[id]} · {available ? "使用 Credit" : unavailableModelHint}
-                  </SelectItem>
-                );
-              })}
+            <SelectContent position="popper" align="start" className="creation-model-menu">
+              {modelGroups.map(({ name, models }, index) => (
+                <SelectGroup key={name}>
+                  {index > 0 && <SelectSeparator />}
+                  <SelectLabel>{name}</SelectLabel>
+                  {models.map((id) => {
+                    const isDefault = id === "standard";
+                    const optionPricing = paidProviders?.find((provider) => provider.id === id);
+                    const available = Boolean(optionPricing && optionPricing.available !== false);
+                    const costLabel = optionPricing ? `${optionPricing.creditMultiplier ?? 1}× Credit` : unavailableModelHint;
+                    const regionBlocked = optionPricing?.unavailableReason === "region";
+                    return (
+                      <SelectItem key={id} value={id} disabled={!isDefault && !available} className="creation-model-option">
+                        <span>{modelProviderLabels[id]}</span>
+                        <span className="creation-model-rate">{isDefault ? "免费 · 默认" : regionBlocked ? `${costLabel} · 地区限制` : costLabel}</span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectGroup>
+              ))}
             </SelectContent>
           </Select>
           <Popover.Root>
@@ -657,12 +676,12 @@ export function CreateWorkspace({
         )}
         {pricing && validSceneCount && (
           <p id="creation-model-pricing" className="creation-model-pricing">
-            预留 {maximumCredits} Credit。结算按每个镜头 {pricing.creditsPerScene} Credit，另按成片每 {pricing.durationUnitSeconds} 秒 {pricing.creditsPerDurationUnit} Credit 向上取整。失败或取消会释放预留额度。
+            <strong>{pricing.creditMultiplier ?? 1}× Credit</strong> · 预留 {maximumCredits} Credit。每个镜头 {pricing.creditsPerScene} Credit，成片每 {pricing.durationUnitSeconds} 秒再计 {pricing.creditsPerDurationUnit} Credit，向上取整。失败或取消会释放预留额度。
           </p>
         )}
         {modelUnavailable && (
           <p id="creation-model-unavailable" className="creation-model-pricing" role="status">
-            {modelProviderLabels[modelProvider]} {unavailableModelHint}。请确认账号状态或切换模型。
+            {modelProviderLabels[modelProvider]} {selectedModelHint}。请确认账号状态或切换模型。
           </p>
         )}
         <AnimatePresence>

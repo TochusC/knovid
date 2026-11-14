@@ -202,8 +202,17 @@ test('private production billing authenticates, atomically reserves, and settles
   const cancellation = {...operation, projectId: randomUUID(), revisionId: randomUUID(), provider: 'openrouter'};
   assert.equal((await settle({...cancellation, action: 'release'})).payload.state, 'released');
   assert.equal((await settle({...cancellation, action: 'reserve'})).payload.state, 'released');
+  for (const provider of ['glm-5.3', 'deepseek-pro', 'openrouter-astra', 'openrouter-sol']) {
+    const variant = {...operation, projectId: randomUUID(), revisionId: randomUUID(), provider};
+    const held = await settle({...variant, action: 'reserve'});
+    assert.equal(held.response.status, 200);
+    assert.equal(held.payload.provider, provider);
+    assert.equal((await settle({...variant, action: 'release'})).payload.state, 'released');
+  }
   const {entries} = await credits.listLedger(userId);
-  assert.deepEqual(entries.map(entry => entry.kind), ['capture', 'reserve', 'grant']);
+  assert.deepEqual(entries.map(entry => entry.kind), [
+    'release', 'reserve', 'release', 'reserve', 'release', 'reserve', 'release', 'reserve', 'capture', 'reserve', 'grant',
+  ]);
 });
 
 test('CORS is an exact allowlist and every mutation requires a trusted Origin', async () => {

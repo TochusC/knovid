@@ -44,4 +44,5 @@ test('oversize malformed responses are bounded while strict JSON remains support
   const payload = '中'.repeat(700_000);
   assert.throws(() => parseModelJSON(JSON.stringify({payload}).replace(/}$/, ',}')), {name: 'SyntaxError'});
   assert.equal(parseModelJSON(JSON.stringify({payload})).value.payload.length, payload.length);
+  assert.throws(() => parseModelJSON('```json' + ' '.repeat(1_000_000) + '{'), {name: 'SyntaxError'});
 });

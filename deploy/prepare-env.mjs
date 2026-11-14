@@ -11,6 +11,8 @@ const allowed = [
   'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_PLAN_MODEL', 'LLM_FAST_MODEL',
   'LLM_MOTION_MODEL', 'TTS_VOICE_ZH', 'TTS_VOICE_EN',
   'DEEPSEEK_API_KEY', 'OPENROUTER_API_KEY', 'DEEPSEEK_MODEL', 'OPENROUTER_MODEL',
+  'GLM_53_MODEL', 'DEEPSEEK_PRO_MODEL', 'OPENROUTER_ASTRA_MODEL', 'OPENROUTER_SOL_MODEL',
+  'PREMIUM_MODEL_PROVIDERS', 'PRODUCTION_MODELS_REGION_BLOCKED',
 ];
 const config = {
   POSTGRES_PASSWORD: randomBytes(32).toString('hex'),
@@ -22,7 +24,8 @@ const config = {
   SIGNUP_CREDITS: '0', SESSION_TTL_SECONDS: '604800',
 };
 for (const key of allowed) if (source[key]?.trim()) config[key] = source[key];
-config.PREMIUM_MODEL_PROVIDERS = [
+config.PREMIUM_MODEL_PROVIDERS ||= [
+  (!config.LLM_BASE_URL || config.LLM_BASE_URL.replace(/\/+$/, '') === 'https://sec.llm.autos/v1' || config.GLM_53_MODEL) && 'glm',
   config.DEEPSEEK_API_KEY && 'deepseek', config.OPENROUTER_API_KEY && 'openrouter',
 ].filter(Boolean).join(',');
 function quote(value) {

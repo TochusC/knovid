@@ -625,6 +625,29 @@ h1 {
   font-size: 12px;
   line-height: 1.5;
 }
+.creation-model-trigger {
+  max-width: 100%;
+}
+.creation-model-menu {
+  min-width: min(260px, calc(100vw - 24px));
+}
+.creation-model-menu [data-slot="select-label"] {
+  font-weight: 650;
+}
+.creation-model-option > span:last-child {
+  width: 100%;
+  justify-content: space-between;
+}
+.creation-model-rate {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.creation-model-pricing strong {
+  color: var(--foreground);
+  font-weight: 650;
+}
 .creation-audio-trigger {
   display: inline-flex;
   align-items: center;

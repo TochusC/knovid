@@ -1,7 +1,11 @@
-import type { CreateProjectInput, ExportResult, HealthStatus, ModelProvider, Project, ProjectSummary, Scene, SceneParameterSchema, SceneUpdate, StylePreset, VisitorAccess, WorkflowTrace } from "./types";
+import { modelProviderLabels, type CreateProjectInput, type ExportResult, type HealthStatus, type ModelProvider, type Project, type ProjectSummary, type Scene, type SceneParameterSchema, type SceneUpdate, type StylePreset, type VisitorAccess, type WorkflowTrace } from "./types.ts";
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 export const API_BASE_URL = (configuredBaseUrl || "/api").replace(/\/$/, "");
+
+function knownModel(id: unknown): id is ModelProvider {
+  return typeof id === "string" && Object.hasOwn(modelProviderLabels, id);
+}
 
 export const apiCapabilities = {
   creationOptions: false,
@@ -104,6 +108,7 @@ const messages: Record<string, string> = {
   INSUFFICIENT_CREDITS: "可用 Credit 不足，请查看账户额度，或在新建作品时选择默认模型。",
   PREMIUM_LOGIN_REQUIRED: "请登录后使用这个模型。",
   MODEL_PROVIDER_UNAVAILABLE: "所选模型暂不可用，请选择其他模型或稍后重试。",
+  MODEL_PROVIDER_REGION_UNAVAILABLE: "所选模型受当前服务器地区限制，请切换模型。",
   CREDIT_SERVICE_UNAVAILABLE: "暂时无法核对 Credit，请稍后重试。",
   STYLE_PRESET_NOT_FOUND: "这个风格已不可用，请重新选择。",
   GUEST_DURATION_LIMIT: "这份作品最长为 30 秒，请缩短讲解后重试。",
@@ -205,7 +210,8 @@ async function readAccess(signal?: AbortSignal): Promise<VisitorAccess> {
   if (!valid) throw new ApiError("暂时无法读取可用生成额度，请稍后重试。", 0, "INVALID_ACCESS_RESPONSE");
   const modelProviders = access.mode === "member" && Array.isArray(access.modelProviders)
     ? access.modelProviders.filter((option) =>
-      (option?.id === "deepseek" || option?.id === "openrouter")
+      knownModel(option?.id) && option.id !== "standard"
+      && (option.creditMultiplier === undefined || (Number.isSafeInteger(option.creditMultiplier) && option.creditMultiplier > 0))
       && Number.isSafeInteger(option.creditsPerScene) && option.creditsPerScene > 0
       && Number.isSafeInteger(option.creditsPerDurationUnit) && option.creditsPerDurationUnit > 0
       && Number.isSafeInteger(option.durationUnitSeconds) && option.durationUnitSeconds > 0
@@ -320,8 +326,7 @@ function normalizeProject(raw: BackendProject, editingSource?: BackendRevision):
     settings: {
       audience: "", durationSeconds, style: "editorial", aspectRatio: "16:9",
       language: raw.options.language === "en" ? "en" : "zh",
-      modelProvider: raw.options.modelProvider === "deepseek" || raw.options.modelProvider === "openrouter"
-        ? raw.options.modelProvider : undefined,
+      modelProvider: knownModel(raw.options.modelProvider) ? raw.options.modelProvider : undefined,
     },
     scenes,
     sources: (editingSource?.evidence || revision.evidence).map((source) => ({ id: source.id, title: source.title, url: source.url, page: source.page ?? undefined, excerpt: source.quote })),

@@ -209,6 +209,53 @@ test('paid providers send distinct credentials to their configured gateways', as
   assert.equal(fetch.mock.callCount(), 2);
 });
 
+test('explicit model variants pin all tasks and use provider-specific Motion limits', async t => {
+  const variants = [
+    {id: 'glm-5.3', model: 'glm-5.3', env: 'GLM_53_MODEL', url: 'https://sec.llm.autos/v1', key: 'LLM_API_KEY',
+      maxTokens: 131_072, options: {thinking: {type: 'disabled'}}},
+    {id: 'deepseek-pro', model: 'deepseek-v4-pro', env: 'DEEPSEEK_PRO_MODEL', url: 'https://api.deepseek.com', key: 'DEEPSEEK_API_KEY',
+      maxTokens: 131_072, options: {thinking: {type: 'disabled'}, response_format: {type: 'json_object'}}},
+    {id: 'openrouter-astra', model: 'openai/gpt-6-astra', env: 'OPENROUTER_ASTRA_MODEL', url: 'https://openrouter.ai/api/v1', key: 'OPENROUTER_API_KEY',
+      maxTokens: 128_000, options: {reasoning: {effort: 'low', exclude: true}, response_format: {type: 'json_object'}}},
+    {id: 'openrouter-sol', model: 'openai/gpt-6.1-sol', env: 'OPENROUTER_SOL_MODEL', url: 'https://openrouter.ai/api/v1', key: 'OPENROUTER_API_KEY',
+      maxTokens: 128_000, options: {reasoning: {effort: 'low', exclude: true}, response_format: {type: 'json_object'}}},
+  ];
+  const env = new Set(['LLM_BASE_URL', ...variants.flatMap(({key, env}) => [key, env])]);
+  const previous = new Map([...env].map(key => [key, process.env[key]]));
+  t.after(() => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  for (const key of env) delete process.env[key];
+  for (const {key} of variants) process.env[key] = 'test-' + key;
+  const requests = [];
+  t.mock.method(globalThis, 'fetch', async (url, request) => {
+    requests.push({url, auth: request.headers.Authorization, body: JSON.parse(request.body)});
+    return Response.json({choices: [{message: {content: '{"ok":true}'}}]});
+  });
+  const prompt = {role: 'Motion Designer', tier: 'motion', instructions: 'Return JSON', input: {},
+    signal: AbortSignal.timeout(5000), validate: value => value.ok};
+  for (const variant of variants) {
+    assert.deepEqual(
+      ['plan', 'fast', 'motion'].map(tier => modelConfig(variant.id)[tier]),
+      [variant.model, variant.model, variant.model],
+    );
+    assert.deepEqual(await ask({...prompt, modelProvider: variant.id}), {model: variant.model, value: true});
+    const {url, auth, body} = requests.at(-1);
+    assert.equal(url, variant.url + '/chat/completions');
+    assert.equal(auth, 'Bearer test-' + variant.key);
+    assert.equal(body.model, variant.model);
+    assert.equal(body.max_tokens, variant.maxTokens);
+    assert.equal(body.stream, true);
+    for (const [name, value] of Object.entries(variant.options)) assert.deepEqual(body[name], value);
+  }
+  await ask({...prompt, role: 'Writer', tier: 'fast', structuredOutput: true, modelProvider: 'glm-5.3'});
+  assert.equal(requests.at(-1).body.stream, false);
+  assert.deepEqual(requests.at(-1).body.response_format, {type: 'json_object'});
+});
+
 function rateLimitProbe(t, fetch, signal = AbortSignal.timeout(5000)) {
   t.mock.method(globalThis, 'fetch', fetch);
   process.env.LLM_BASE_URL = 'http://127.0.0.1:1/v1';

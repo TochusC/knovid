@@ -2,6 +2,7 @@ import {Fault, record, UUID} from './common.mjs';
 import {soundSettings} from './sound.mjs';
 import {guestSceneCount, maxSceneCount, minSceneCount} from './scene-limits.mjs';
 import {isBuiltinStyleId} from './builtin-styles.mjs';
+import {isModelId} from './model-catalog.mjs';
 
 const customStyleId = new RegExp('^' + UUID + '$');
 
@@ -69,7 +70,7 @@ export function creation(body, pdfBuffer) {
   const sceneCount = options.sceneCount ?? guestSceneCount;
   const size = options.size ?? '1080p';
   const modelProvider = options.modelProvider ?? 'standard';
-  if (!['standard', 'deepseek', 'openrouter'].includes(modelProvider)) invalid('Unknown model provider');
+  if (!isModelId(modelProvider)) invalid('Unknown model provider');
   if (options.narration !== undefined && typeof options.narration !== 'boolean') invalid('options.narration must be a boolean');
   if (options.stylePresetId !== undefined && (typeof options.stylePresetId !== 'string' ||
     !(isBuiltinStyleId(options.stylePresetId) || options.stylePresetId === 'auto' || customStyleId.test(options.stylePresetId)))) {

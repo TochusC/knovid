@@ -30,9 +30,12 @@ test('frontend adapter follows the actual backend HTTP contract', async t => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = `http://127.0.0.1:${server.address().port}`;
   const source = await readFile(new URL('../src/lib/api.ts', import.meta.url), 'utf8');
+  const typesURL = new URL('../src/lib/types.ts', import.meta.url).href;
   globalThis.window = globalThis;
   const loadAdapter = async base => {
-    const javascript = stripTypeScriptTypes(source.replace('import.meta.env.VITE_API_BASE_URL', JSON.stringify(base)));
+    const javascript = stripTypeScriptTypes(source
+      .replace('import.meta.env.VITE_API_BASE_URL', JSON.stringify(base))
+      .replace('"./types.ts"', JSON.stringify(typesURL)));
     return import('data:text/javascript;base64,' + Buffer.from(javascript).toString('base64'));
   };
   const {api, ApiError} = await loadAdapter(origin);

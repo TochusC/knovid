@@ -140,7 +140,7 @@ export async function listProjects() {
 
 async function stageJob(project, request, modelProvider, billing) {
   const job = {projectId: project.id, revisionId: randomUUID(), edit: Boolean(request.sourceRevisionId),
-    chunkFrames: integerEnv('RENDER_CHUNK_FRAMES', 200, 10, 1500), ...(billing && {modelProvider, billing})};
+    chunkFrames: integerEnv('RENDER_CHUNK_FRAMES', 200, 10, 1500), ...(modelProvider && {modelProvider}), ...(billing && {billing})};
   const dir = revisionDir(job);
   const queuedAt = new Date().toISOString();
   await mkdir(dir, {recursive: true});
@@ -264,7 +264,7 @@ export function editProject(executor, projectId, body) {
     }
     return submit(executor, await stageJob(project, {
       sourceRevisionId: source.revisionId, sceneOrder, music: music ?? sourceRequest.music, sound, voiceChanged,
-    }));
+    }, sourceRequest.job?.modelProvider ?? options.modelProvider));
   });
 }
 
@@ -289,8 +289,10 @@ export function retryRevision(executor, projectId, revisionId) {
     if (status === 'queued') return submit(executor, saved);
     if (status !== 'failed' && status !== 'cancelled') throw new Fault('REVISION_NOT_RETRYABLE', 'Only queued, failed or cancelled revisions can be retried', {status: 409});
     const {options} = await read(settingsFile(projectId));
-    const billing = await productionQuote(project.owner, saved.modelProvider, options.sceneCount);
-    const next = await stageJob(project, details, saved.modelProvider, billing);
+    const modelProvider = saved.modelProvider ?? options.modelProvider;
+    const billing = details.sourceRevisionId && !saved.billing ? undefined
+      : await productionQuote(project.owner, modelProvider, options.sceneCount, saved.billing);
+    const next = await stageJob(project, details, modelProvider, billing);
     if (!details.sourceRevisionId) {
       const from = revisionDir(job);
       const to = revisionDir(next);

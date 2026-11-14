@@ -1,15 +1,24 @@
 export type InputType = "topic" | "paper";
 
-export type ModelProvider = "standard" | "deepseek" | "openrouter";
+export type ModelProvider = "standard" | "glm-5.3" | "deepseek" | "deepseek-pro" | "openrouter" | "openrouter-astra" | "openrouter-sol";
 
 export const modelProviderLabels: Record<ModelProvider, string> = {
-  standard: "GLM",
-  deepseek: "DeepSeek",
-  openrouter: "OpenRouter",
+  standard: "GLM-5.1 HighSpeed",
+  "glm-5.3": "GLM-5.3",
+  deepseek: "DeepSeek 4.1 Flash",
+  "deepseek-pro": "DeepSeek 4.0 Pro",
+  openrouter: "OpenRouter · DeepSeek 4.1 Flash",
+  "openrouter-astra": "GPT-6 Astra",
+  "openrouter-sol": "GPT-6.1 Sol",
 };
 
 export interface ModelProviderPricing {
   id: ModelProvider;
+  provider?: "glm" | "deepseek" | "openrouter";
+  label?: string;
+  creditMultiplier?: number;
+  available?: boolean;
+  unavailableReason?: "region";
   creditsPerScene: number;
   creditsPerDurationUnit: number;
   durationUnitSeconds: number;

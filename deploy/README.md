@@ -77,9 +77,9 @@ ln -sfn "$PREVIOUS" /opt/knovid/current
 printf '%s\n' "$KNOVID_RELEASE" > /opt/knovid/shared/current-release
 ```
 
-DeepSeek 和 OpenRouter 需要登录。每个镜头收取 1 Credit，成片每满或不足 30 秒加收 1 Credit。任务开始前按每镜头最多 60 秒预留，制作成功后按实际成片结算，失败或取消时释放额度。默认 GLM 沿用免费额度。
+默认 GLM-5.1 HighSpeed 免费。其余模型需要登录，基础费用为每个镜头 1 Credit，加上成片每 30 秒 1 Credit（向上取整），再乘所选模型的费率。GLM-5.3 与 DeepSeek 4.1 Flash 为 1×，DeepSeek 4.0 Pro 与 GPT-6.1 Sol 为 2×，GPT-6 Astra 为 3×。每份任务会保存创建时的倍率。任务开始前按每镜头最多 60 秒预留，制作成功后按实际成片结算，失败或取消时释放额度。
 
-首次部署可在 `backend/.env` 提供 `DEEPSEEK_API_KEY` 和 `OPENROUTER_API_KEY`。已有部署在 `/opt/knovid/shared/.env` 配置相应密钥、`PRODUCTION_BILLING_TOKEN` 和逗号分隔的 `PREMIUM_MODEL_PROVIDERS`。模型密钥只传给模型 Worker，Credit 服务令牌只用于制作 API、流程 Worker 与账号服务之间的请求。
+首次部署可在 `backend/.env` 提供 `DEEPSEEK_API_KEY` 和 `OPENROUTER_API_KEY`。已有部署在 `/opt/knovid/shared/.env` 配置相应密钥、`PRODUCTION_BILLING_TOKEN` 和逗号分隔的 `PREMIUM_MODEL_PROVIDERS`（例如 `glm,deepseek,openrouter`）。用 `PRODUCTION_MODELS_REGION_BLOCKED` 标记当前服务器无法调用的具体模型，菜单会保留价格并禁用提交。模型密钥只传给模型 Worker，Credit 服务令牌只用于制作 API、流程 Worker 与账号服务之间的请求。
 
 Temporal 使用单实例开发服务器和持久化 SQLite，适合单机试运行。账号登录和注册目前按连接来源限速，每 15 分钟共享 60 次配额。
 
